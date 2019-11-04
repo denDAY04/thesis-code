@@ -16,15 +16,6 @@ public class SecurityScheme {
         verifySchemes();
     }
 
-    private void verifySchemes() {
-        try {
-            SecureRandom.getInstance(RANDOM_GENERATOR_SCHEME);
-        } catch (NoSuchAlgorithmException e) {
-            System.err.println("Invalid SecureRandom");
-            e.printStackTrace();
-        }
-    }
-
     /**
      * Get the singleton instance.
      * @return the security scheme instance.
@@ -46,6 +37,15 @@ public class SecurityScheme {
         } catch (NoSuchAlgorithmException e) {
             System.err.println("Could not retrieve SecureRandom instance");
             return null;
+        }
+    }
+
+    private void verifySchemes() {
+        try {
+            SecureRandom.getInstance(RANDOM_GENERATOR_SCHEME);
+        } catch (NoSuchAlgorithmException e) {
+            System.err.println("Invalid random generator");
+            e.printStackTrace();
         }
     }
 }
