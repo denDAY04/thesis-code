@@ -15,6 +15,14 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 
+/**
+ * This class encapsulates the facilities of a secure vault storing vault entries, including addition, removal, and
+ * searching of vault entries. This class can be initiated as an empty vault, or constructed from vault fragments.
+ * Equally it can de-fragment the vault into fragments.<p>
+ * <p>
+ * All handling of raw byte data is done in unencrypted contexts, thus the user of this class should take care that any
+ * data sent to the vault (as entries or fragments) are done so in an unencrypted state.
+ */
 public class SecureVault implements Serializable {
     private static final long serialVersionUID = 2528173234528631366L;
 
