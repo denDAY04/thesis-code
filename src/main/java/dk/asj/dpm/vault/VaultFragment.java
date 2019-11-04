@@ -101,14 +101,13 @@ public class VaultFragment implements Serializable {
 
         /**
          * Add a byte of data with the given mask-index to the builder.
-         * @param maskIndex 0-based index of the byte's location in the complete vault's serialized byte array.
+         * @param maskIndex 0-based index of the byte's location in the complete vault's serialized byte array. This
+         *                  implies the mask must be in the range 0 <= <b>maskIndex</b> < <b>vaultSize</b>
          * @param data the byte data.
          * @return this builder.
          */
         public Builder addByte(int maskIndex, byte data) {
-            if (maskIndex < 0) {
-                throw new IllegalArgumentException("Mask index for byte must be >= 0");
-            }
+            Objects.checkIndex(maskIndex, vaultSize);
             maskBuffer.put(maskIndex);
             byteBuffer.put(data);
             return this;
