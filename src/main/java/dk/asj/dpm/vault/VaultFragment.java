@@ -3,6 +3,7 @@ package dk.asj.dpm.vault;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
+import java.util.Arrays;
 import java.util.Objects;
 
 /**
@@ -74,7 +75,32 @@ public class VaultFragment implements Serializable {
         return new Builder(vaultSize);
     }
 
+    /**
+     * Auto-generated semantic equals method that include all fields in the fragment object.
+     * @param o object to compare with.
+     * @return true if the object is semantically equal to this object.
+     */
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof VaultFragment)) return false;
+        VaultFragment fragment1 = (VaultFragment) o;
+        return vaultSize == fragment1.vaultSize &&
+                Arrays.equals(fragment, fragment1.fragment) &&
+                Arrays.equals(mask, fragment1.mask);
+    }
 
+    /**
+     * Auto-generated Java object hash.
+     * @return the Java hash.
+     */
+    @Override
+    public int hashCode() {
+        int result = Objects.hash(vaultSize);
+        result = 31 * result + Arrays.hashCode(fragment);
+        result = 31 * result + Arrays.hashCode(mask);
+        return result;
+    }
 
     /**
      * Builder for constructing a vault fragment through iteratively adding byte data.
