@@ -28,11 +28,6 @@ public class FragmentPacket extends Packet implements Serializable {
         return fragment;
     }
 
-    /**
-     * Auto-generated semantic equals method.
-     * @param o other object to compare against this object.
-     * @return true if the other object is equal to this object.
-     */
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -41,10 +36,6 @@ public class FragmentPacket extends Packet implements Serializable {
         return fragment.equals(that.fragment);
     }
 
-    /**
-     * Auto-generated Java object hash code.
-     * @return the Java hash.
-     */
     @Override
     public int hashCode() {
         return Objects.hash(fragment);

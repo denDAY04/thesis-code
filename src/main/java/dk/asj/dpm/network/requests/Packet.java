@@ -14,11 +14,23 @@ import java.io.Serializable;
 public abstract class Packet implements Serializable {
     private static final long serialVersionUID = -8543793731549161373L;
 
+    /**
+     * Custom semantic equal test of another object. Concrete {@link Packet} implementations must define their own implementation
+     * of this method to enforce the semantic equality comparison.
+     * @param obj other object to test for semantic equality.
+     * @return true if and only if the two objects are semantically equal.
+     */
     @Override
     public abstract boolean equals(Object obj);
 
+    /**
+     * Custom Java object hash code. Concrete {@link Packet} implementations must override this method to compute a
+     * suitable object hash code that <i>only</i> include the fields used in the semantic equality test from the
+     * {@link Packet#equals(Object)} implementation.
+     * @return this object's hash code.
+     */
     @Override
-    public abstract int hashCode() ;
+    public abstract int hashCode();
 
     /**
      * Serialize the packet into a byte array.
