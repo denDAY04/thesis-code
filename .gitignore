@@ -132,3 +132,4 @@ buildNumber.properties
 # Custom entries
 .idea/encodings.xml
 /test-data
+/data

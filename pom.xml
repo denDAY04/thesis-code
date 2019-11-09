@@ -18,6 +18,14 @@
             <artifactId>bcprov-jdk15on</artifactId>
             <version>1.64</version>
         </dependency>
+        <!-- https://mvnrepository.com/artifact/org.beryx/text-io -->
+        <dependency>
+            <groupId>org.beryx</groupId>
+            <artifactId>text-io</artifactId>
+            <version>3.3.0</version>
+<!--            <scope>runtime</scope>-->
+        </dependency>
+
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter-engine</artifactId>

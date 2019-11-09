@@ -1,7 +1,12 @@
 package edu.dk.asj.dpm;
 
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
+
+import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.security.NoSuchProviderException;
 import java.security.SecureRandom;
+import java.security.Security;
 
 /**
  * Singleton managing the application's different security schemes.
@@ -9,11 +14,27 @@ import java.security.SecureRandom;
 public class SecurityScheme {
 
     private static final String RANDOM_GENERATOR_SCHEME = "DRBG";
+    private static final String HASH_SCHEME = "SHA3-512";
 
     private static SecurityScheme instance;
 
+
     private SecurityScheme() {
-        verifySchemes();
+        Security.addProvider(new BouncyCastleProvider());
+
+        try {
+            SecureRandom.getInstance(RANDOM_GENERATOR_SCHEME);
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("Invalid random generator algorithm ["+e.getLocalizedMessage()+"]");
+        }
+
+        try {
+            MessageDigest.getInstance(HASH_SCHEME, "BC");
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("Invalid hash algorithm ["+e.getLocalizedMessage()+"]");
+        } catch (NoSuchProviderException e) {
+            throw new IllegalStateException("Invalid hash algorithm provider ["+e.getLocalizedMessage()+"]");
+        }
     }
 
     /**
@@ -28,24 +49,28 @@ public class SecurityScheme {
     }
 
     /**
-     * Retrieve an instance of the scheme's secure random number generator.
+     * Retrieve a new instance of the scheme's secure random number generator.
      * @return a secure random instance.
      */
     public SecureRandom getRandomGenerator() {
         try {
             return SecureRandom.getInstance(RANDOM_GENERATOR_SCHEME);
         } catch (NoSuchAlgorithmException e) {
-            System.err.println("Could not retrieve SecureRandom instance");
-            return null;
+            throw new IllegalStateException("Invalid random generator algorithm ["+e.getLocalizedMessage()+"]");
         }
     }
 
-    private void verifySchemes() {
+    /**
+     * Retrieve a new instance of the scheme's hash function.
+     * @return a {@link MessageDigest} object encapsulating the hash function.
+     */
+    public MessageDigest getHashFunction() {
         try {
-            SecureRandom.getInstance(RANDOM_GENERATOR_SCHEME);
+            return MessageDigest.getInstance(HASH_SCHEME, "BC");
         } catch (NoSuchAlgorithmException e) {
-            System.err.println("Invalid random generator");
-            e.printStackTrace();
+            throw new IllegalStateException("Invalid hash algorithm ["+e.getLocalizedMessage()+"]");
+        } catch (NoSuchProviderException e) {
+            throw new IllegalStateException("Invalid hash algorithm provider ["+e.getLocalizedMessage()+"]");
         }
     }
 }
