@@ -2,6 +2,8 @@ package edu.dk.asj.dpm.properties;
 
 import edu.dk.asj.dpm.SecurityScheme;
 import edu.dk.asj.dpm.UserInterface;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -32,6 +34,7 @@ import static java.nio.file.StandardOpenOption.WRITE;
  */
 public class NetworkProperties implements Serializable {
     private static final long serialVersionUID = 1581193987638702547L;
+    private static final Logger LOGGER = LoggerFactory.getLogger(NetworkProperties.class);
 
     private final UUID nodeId;
     private final BigInteger networkId;
@@ -82,8 +85,11 @@ public class NetworkProperties implements Serializable {
              ObjectInputStream objectStream = new ObjectInputStream(fileStream)) {
 
             return (NetworkProperties) objectStream.readObject();
-        } catch (IOException | ClassNotFoundException e) {
-            UserInterface.error("Not found");
+        } catch (IOException e) {
+            LOGGER.warn("Could not read net properties", e);
+            return null;
+        } catch (ClassNotFoundException e) {
+            LOGGER.error("Net properties data was corrupted", e);
             return null;
         }
     }
@@ -128,10 +134,10 @@ public class NetworkProperties implements Serializable {
             objectWriter.writeObject(properties);
             return properties;
         } catch (FileNotFoundException e) {
-            System.err.println("Could not find network properties file");
+            LOGGER.error("Could not create network properties file", e);
             return null;
         } catch (IOException e) {
-            System.err.println("Could not write to network properties file");
+            LOGGER.error("Could not write to network properties file", e);
             return null;
         }
     }
