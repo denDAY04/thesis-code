@@ -43,7 +43,7 @@ public class UserInterface {
                     .read(pwPrompt);
             MessageDigest hashFunction = SecurityScheme.getInstance().getHashFunction();
             hashFunction.update(password.getBytes(StandardCharsets.UTF_8));
-            pwHash = hashFunction.digest();
+            SecurityScheme.getInstance().setMpHash(hashFunction.digest());
 
             String firstConfigPrompt = "Is this the first device you're configuring? ";
             Boolean firstConfig = textUI.newBooleanInputReader()

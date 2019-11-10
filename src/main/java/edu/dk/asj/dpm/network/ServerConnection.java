@@ -2,6 +2,8 @@ package edu.dk.asj.dpm.network;
 
 
 import edu.dk.asj.dpm.network.requests.Packet;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -14,7 +16,9 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
-public class ServerNetworkConnection extends Thread implements AutoCloseable {
+public class ServerConnection extends Thread implements AutoCloseable {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(ServerConnection.class);
 
     private static final int BUFFER_CAPACITY = 10 * 1000 * 1000;
     private static final long TIMEOUT = 5L;
@@ -24,17 +28,19 @@ public class ServerNetworkConnection extends Thread implements AutoCloseable {
     private RequestHandler requestHandler;
     private int port;
 
-    private ServerNetworkConnection(RequestHandler requestHandler, int port) {
-        super("Server connection");
+    private ServerConnection(RequestHandler requestHandler, int port) {
+        super("Server connection p:"+port);
         this.requestHandler = requestHandler;
         this.port = port;
     }
 
-    public static ServerNetworkConnection open(RequestHandler requestHandler, int port) {
+    public static ServerConnection open(RequestHandler requestHandler, int port) {
         Objects.requireNonNull(requestHandler, "Request processor must not be null");
 
-        ServerNetworkConnection connection = new ServerNetworkConnection(requestHandler, port);
+        ServerConnection connection = new ServerConnection(requestHandler, port);
         connection.start();
+
+        LOGGER.info("Started server connection");
         return connection;
     }
 
@@ -77,81 +83,92 @@ public class ServerNetworkConnection extends Thread implements AutoCloseable {
             server.bind(new InetSocketAddress(port));
             return true;
         } catch (IOException e) {
-            requestHandler.error("Failed to open server socket ["+e.getLocalizedMessage()+"]");
+            LOGGER.error("Could not bind server socket", e);
+            requestHandler.error("Failed to open server connection");
         }
         return false;
     }
 
     private boolean acceptConnection() {
-        System.out.println("[S] Waiting for connections...");
+        LOGGER.debug("Waiting for connections");
         Future<AsynchronousSocketChannel> acceptPromise = server.accept();
 
         try {
             connection = acceptPromise.get(TIMEOUT, TimeUnit.SECONDS);
-            System.out.println("[S] Accepted connection");
+            LOGGER.debug("Accepted connection");
             return true;
 
         } catch (InterruptedException e) {
-            requestHandler.error("Was interrupted while waiting for connection");
+            LOGGER.warn("Interrupted while waiting for request");
+            requestHandler.error("An error occurred while waiting for a request");
         } catch (ExecutionException e) {
-            requestHandler.error("Exception caught while waiting: ["+e.getLocalizedMessage()+"]");
+            LOGGER.warn("Unknown exception while waiting for request", e);
+            requestHandler.error("An error occurred while waiting for a request");
         } catch (TimeoutException e) {
+            LOGGER.warn("Timed out while waiting for request");
             acceptPromise.cancel(true);
-            requestHandler.error("Accept operation timed out");
+            requestHandler.error("No requests");
         }
 
         return false;
     }
 
     private Packet receiveRequest() {
-        System.out.println("[S] Receiving packet...");
+        LOGGER.debug("Receiving packet");
         ByteBuffer buffer = ByteBuffer.allocate(BUFFER_CAPACITY);
         Future<Integer> promise = connection.read(buffer);
 
         try {
             Integer readCount = promise.get(TIMEOUT, TimeUnit.SECONDS);
-            System.out.println("[S] Received packet");
+            LOGGER.debug("Received packet");
             byte[] data = new byte[readCount];
             buffer.flip().get(data);
             return Packet.deserialize(data);
 
         } catch (InterruptedException e) {
-            requestHandler.error("Interrupted while receiving request");
+            LOGGER.warn("Interrupted while receiving request");
+            requestHandler.error("An error occurred while receiving a node response");
         } catch (ExecutionException e) {
-            requestHandler.error("Exception occurred while receiving request ["+e.getLocalizedMessage()+"]");
+            LOGGER.warn("Unknown exception during receive", e);
+            requestHandler.error("An error occurred while receiving a node response");
         } catch (TimeoutException e) {
+            LOGGER.warn("Receive timed out");
             promise.cancel(true);
-            requestHandler.error("Receive timed out");
+            requestHandler.error("No response");
         }
 
         return null;
     }
 
     private void sendResponse(Packet response) {
-        System.out.println("[S] Sending response...");
+        LOGGER.debug("Sending response");
         ByteBuffer buffer = ByteBuffer.wrap(response.serialize());
         Future<Integer> promise = connection.write(buffer);
 
         try {
             promise.get(TIMEOUT, TimeUnit.SECONDS);
-            System.out.println("[S] Response sent");
+            LOGGER.debug("Response sent");
         } catch (InterruptedException e) {
-            requestHandler.error("Was interrupted while sending response");
+            LOGGER.warn("Interrupted while sending response");
+            requestHandler.error("An error occurred while sending response");
         } catch (ExecutionException e) {
-            requestHandler.error("Exception occurred while sending response ["+e.getLocalizedMessage()+"]");
+            LOGGER.warn("Unknown exception while sending response", e);
+            requestHandler.error("An error occurred while sending response");
         } catch (TimeoutException e) {
+            LOGGER.warn("Send timed out");
             promise.cancel(true);
-            requestHandler.error("Timed out while sending response");
+            requestHandler.error("Could not send response");
         }
     }
 
     private void cleanUp() {
-        System.out.println("[S] Cleaning up");
+        LOGGER.info("Cleaning up");
         if (connection != null && connection.isOpen()) {
             try {
                 connection.close();
             } catch (IOException e) {
-                requestHandler.error("CRITICAL ERROR - Could not clean up connection ["+e.getLocalizedMessage()+"]");
+                LOGGER.error("Failed to clean up connection", e);
+                requestHandler.error("Clean-up failed");
             }
         }
 
@@ -159,7 +176,8 @@ public class ServerNetworkConnection extends Thread implements AutoCloseable {
             try {
                 server.close();
             } catch (IOException e) {
-                requestHandler.error("CRITICAL ERROR - Could not clean up server ["+e.getLocalizedMessage()+"]");
+                LOGGER.error("Failed to clean up server", e);
+                requestHandler.error("Clean-up failed");
             }
         }
     }

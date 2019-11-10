@@ -21,8 +21,8 @@ class NetworkConnectionTest {
         int serverPort = 47201;
         testRequest = new UserAuthPacket(50142);
 
-        ServerNetworkConnection server = ServerNetworkConnection.open(handler, serverPort);
-        ClientNetworkConnection client = ClientNetworkConnection.send(testRequest, new InetSocketAddress("localhost", serverPort));
+        ServerConnection server = ServerConnection.open(handler, serverPort);
+        ClientConnection client = ClientConnection.send(testRequest, new InetSocketAddress("localhost", serverPort));
 
         server.join();
         client.join();

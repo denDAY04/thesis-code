@@ -2,6 +2,7 @@ package edu.dk.asj.dpm;
 
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 
+import java.math.BigInteger;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
@@ -17,6 +18,8 @@ public class SecurityScheme {
     private static final String HASH_SCHEME = "SHA3-512";
 
     private static SecurityScheme instance;
+
+    private byte[] mpHash;
 
 
     private SecurityScheme() {
@@ -72,5 +75,21 @@ public class SecurityScheme {
         } catch (NoSuchProviderException e) {
             throw new IllegalStateException("Invalid hash algorithm provider ["+e.getLocalizedMessage()+"]");
         }
+    }
+
+    /**
+     * Get the user's master password verification hash.
+     * @return the has.
+     */
+    public byte[] getMpHash() {
+        return mpHash;
+    }
+
+    /**
+     * Set the master password verification hash.
+     * @param hash the hash
+     */
+    public void setMpHash(byte[] hash) {
+        mpHash = hash;
     }
 }
