@@ -32,7 +32,7 @@ public class ClientConnection extends Thread implements AutoCloseable {
 
 
     private ClientConnection(SocketAddress destination, Packet request) {
-        super("Client connection -> " + destination.toString());
+        super("connection-" + destination.toString());
         this.destination = destination;
         this.request = request;
     }

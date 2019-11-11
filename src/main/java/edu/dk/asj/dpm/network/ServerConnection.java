@@ -30,7 +30,7 @@ public class ServerConnection extends Thread implements AutoCloseable {
     private int port;
 
     private ServerConnection(PacketHandler packetHandler, int port) {
-        super("Server connection p:"+port);
+        super("server-p:"+port);
         this.packetHandler = packetHandler;
         this.port = port;
     }

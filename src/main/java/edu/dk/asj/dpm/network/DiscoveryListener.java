@@ -31,7 +31,7 @@ public class DiscoveryListener extends Thread implements AutoCloseable {
     private final BigInteger networkId;
 
     private DiscoveryListener(PacketHandler<DiscoveryPacket> packetHandler, BigInteger networkId) {
-        super("Node Discovery Listener");
+        super("discovery-listener");
         this.packetHandler = packetHandler;
         this.networkId = networkId;
     }
