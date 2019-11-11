@@ -1,6 +1,7 @@
 package edu.dk.asj.dpm.vault;
 
 import edu.dk.asj.dpm.SecurityScheme;
+import edu.dk.asj.dpm.util.BufferHelper;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -188,16 +189,8 @@ public class SecureVault implements Serializable {
                 throw new IllegalStateException("Vault fragments are not complete");
             }
 
-            buffer.flip();
-            byte[] backingArray;
-            if (buffer.hasArray()) {
-                backingArray = buffer.array();
-            } else {
-                backingArray = new byte[finalVaultSize];
-                buffer.get(backingArray);
-            }
-
-            ObjectInputStream objWriter = new ObjectInputStream(new ByteArrayInputStream(backingArray));
+            byte[] data = BufferHelper.readAndClear(buffer);
+            ObjectInputStream objWriter = new ObjectInputStream(new ByteArrayInputStream(data));
             return (SecureVault) objWriter.readObject();
         }
 

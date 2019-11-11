@@ -1,5 +1,7 @@
 package edu.dk.asj.dpm.vault;
 
+import edu.dk.asj.dpm.util.BufferHelper;
+
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
@@ -144,14 +146,8 @@ public class VaultFragment implements Serializable {
          * @return the vault fragment.
          */
         public VaultFragment build() {
-            byteBuffer.flip();
-            byte[] byteArray = new byte[byteBuffer.limit()];
-            byteBuffer.get(byteArray, 0, byteBuffer.limit());
-
-            maskBuffer.flip();
-            int [] maskArray = new int[maskBuffer.limit()];
-            maskBuffer.get(maskArray, 0, maskBuffer.limit());
-
+            byte[] byteArray = BufferHelper.readAndClear(byteBuffer);
+            int [] maskArray = BufferHelper.readAndClear(maskBuffer);
             return new VaultFragment(maskArray, byteArray, vaultSize);
         }
     }

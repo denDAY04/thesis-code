@@ -1,4 +1,4 @@
-package edu.dk.asj.dpm.network.requests;
+package edu.dk.asj.dpm.network.packets;
 
 import edu.dk.asj.dpm.vault.VaultFragment;
 import java.io.Serializable;

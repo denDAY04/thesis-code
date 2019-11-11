@@ -1,6 +1,7 @@
 package edu.dk.asj.dpm.network;
 
-import edu.dk.asj.dpm.network.requests.Packet;
+import edu.dk.asj.dpm.network.packets.Packet;
+import edu.dk.asj.dpm.util.BufferHelper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -91,9 +92,6 @@ public class ClientConnection extends Thread implements AutoCloseable {
         cleanUp();
     }
 
-    /**
-     * Close and clean up the connection.
-     */
     @Override
     public void close() {
         cleanUp();
@@ -162,11 +160,9 @@ public class ClientConnection extends Thread implements AutoCloseable {
         Future<Integer> receivePromise = connection.read(responseBuffer);
 
         try {
-            Integer readCount = receivePromise.get(TIMEOUT, TimeUnit.SECONDS);
+            receivePromise.get(TIMEOUT, TimeUnit.SECONDS);
             LOGGER.debug("Received response");
-            byte[] data = new byte[readCount];
-            responseBuffer.flip().get(data);
-            response = Packet.deserialize(data);
+            response = Packet.deserialize(BufferHelper.readAndClear(responseBuffer));
             return true;
 
         } catch (InterruptedException e) {

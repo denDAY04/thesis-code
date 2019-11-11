@@ -1,7 +1,8 @@
 package edu.dk.asj.dpm.network;
 
 
-import edu.dk.asj.dpm.network.requests.Packet;
+import edu.dk.asj.dpm.network.packets.Packet;
+import edu.dk.asj.dpm.util.BufferHelper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -25,19 +26,19 @@ public class ServerConnection extends Thread implements AutoCloseable {
 
     private AsynchronousServerSocketChannel server;
     private AsynchronousSocketChannel connection;
-    private RequestHandler requestHandler;
+    private PacketHandler packetHandler;
     private int port;
 
-    private ServerConnection(RequestHandler requestHandler, int port) {
+    private ServerConnection(PacketHandler packetHandler, int port) {
         super("Server connection p:"+port);
-        this.requestHandler = requestHandler;
+        this.packetHandler = packetHandler;
         this.port = port;
     }
 
-    public static ServerConnection open(RequestHandler requestHandler, int port) {
-        Objects.requireNonNull(requestHandler, "Request processor must not be null");
+    public static ServerConnection open(PacketHandler packetHandler, int port) {
+        Objects.requireNonNull(packetHandler, "Request processor must not be null");
 
-        ServerConnection connection = new ServerConnection(requestHandler, port);
+        ServerConnection connection = new ServerConnection(packetHandler, port);
         connection.start();
 
         LOGGER.info("Started server connection");
@@ -64,7 +65,7 @@ public class ServerConnection extends Thread implements AutoCloseable {
             return;
         }
 
-        Packet response = requestHandler.process(request);
+        Packet response = packetHandler.process(request);
         if (response != null) {
             sendResponse(response);
         }
@@ -84,7 +85,7 @@ public class ServerConnection extends Thread implements AutoCloseable {
             return true;
         } catch (IOException e) {
             LOGGER.error("Could not bind server socket", e);
-            requestHandler.error("Failed to open server connection");
+            packetHandler.error("Failed to open server connection");
         }
         return false;
     }
@@ -100,14 +101,14 @@ public class ServerConnection extends Thread implements AutoCloseable {
 
         } catch (InterruptedException e) {
             LOGGER.warn("Interrupted while waiting for request");
-            requestHandler.error("An error occurred while waiting for a request");
+            packetHandler.error("An error occurred while waiting for a server request");
         } catch (ExecutionException e) {
             LOGGER.warn("Unknown exception while waiting for request", e);
-            requestHandler.error("An error occurred while waiting for a request");
+            packetHandler.error("An error occurred while waiting for a server request");
         } catch (TimeoutException e) {
             LOGGER.warn("Timed out while waiting for request");
             acceptPromise.cancel(true);
-            requestHandler.error("No requests");
+            packetHandler.error("No requests to server");
         }
 
         return false;
@@ -119,22 +120,20 @@ public class ServerConnection extends Thread implements AutoCloseable {
         Future<Integer> promise = connection.read(buffer);
 
         try {
-            Integer readCount = promise.get(TIMEOUT, TimeUnit.SECONDS);
+            promise.get(TIMEOUT, TimeUnit.SECONDS);
             LOGGER.debug("Received packet");
-            byte[] data = new byte[readCount];
-            buffer.flip().get(data);
-            return Packet.deserialize(data);
+            return Packet.deserialize(BufferHelper.readAndClear(buffer));
 
         } catch (InterruptedException e) {
             LOGGER.warn("Interrupted while receiving request");
-            requestHandler.error("An error occurred while receiving a node response");
+            packetHandler.error("An error occurred while receiving a node response");
         } catch (ExecutionException e) {
             LOGGER.warn("Unknown exception during receive", e);
-            requestHandler.error("An error occurred while receiving a node response");
+            packetHandler.error("An error occurred while receiving a node response");
         } catch (TimeoutException e) {
             LOGGER.warn("Receive timed out");
             promise.cancel(true);
-            requestHandler.error("No response");
+            packetHandler.error("No response to server");
         }
 
         return null;
@@ -150,14 +149,14 @@ public class ServerConnection extends Thread implements AutoCloseable {
             LOGGER.debug("Response sent");
         } catch (InterruptedException e) {
             LOGGER.warn("Interrupted while sending response");
-            requestHandler.error("An error occurred while sending response");
+            packetHandler.error("An error occurred while sending server response");
         } catch (ExecutionException e) {
             LOGGER.warn("Unknown exception while sending response", e);
-            requestHandler.error("An error occurred while sending response");
+            packetHandler.error("An error occurred while sending server response");
         } catch (TimeoutException e) {
             LOGGER.warn("Send timed out");
             promise.cancel(true);
-            requestHandler.error("Could not send response");
+            packetHandler.error("Could not send server response");
         }
     }
 
@@ -168,7 +167,7 @@ public class ServerConnection extends Thread implements AutoCloseable {
                 connection.close();
             } catch (IOException e) {
                 LOGGER.error("Failed to clean up connection", e);
-                requestHandler.error("Clean-up failed");
+                packetHandler.error("Clean-up failed for server connection");
             }
         }
 
@@ -177,7 +176,7 @@ public class ServerConnection extends Thread implements AutoCloseable {
                 server.close();
             } catch (IOException e) {
                 LOGGER.error("Failed to clean up server", e);
-                requestHandler.error("Clean-up failed");
+                packetHandler.error("Clean-up failed for server connection");
             }
         }
     }

@@ -1,13 +1,13 @@
-package edu.dk.asj.dpm.network.requests;
+package edu.dk.asj.dpm.network.packets;
 
 import java.io.Serializable;
 import java.util.Objects;
 
 /**
- * Request containing a port number indicating the port a recipient of this packet should connect to in order to start
- * a user authentication process.
+ * Packet for echoing a response to a {@link DiscoveryPacket}. This response includes the port number on which the
+ * sender of the discovery request should initiate a session connection.
  */
-public class UserAuthPacket extends Packet implements Serializable {
+public class DiscoveryEchoPacket extends Packet implements Serializable {
     private static final long serialVersionUID = 8379654888314823172L;
 
     private final int connectionPort;
@@ -16,7 +16,7 @@ public class UserAuthPacket extends Packet implements Serializable {
      * Construct the request with a connection port for the receiver of this request to connect to.
      * @param connectionPort the connection port
      */
-    public UserAuthPacket(int connectionPort) {
+    public DiscoveryEchoPacket(int connectionPort) {
         this.connectionPort = connectionPort;
     }
 
@@ -31,8 +31,8 @@ public class UserAuthPacket extends Packet implements Serializable {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (!(o instanceof UserAuthPacket)) return false;
-        UserAuthPacket that = (UserAuthPacket) o;
+        if (!(o instanceof DiscoveryEchoPacket)) return false;
+        DiscoveryEchoPacket that = (DiscoveryEchoPacket) o;
         return connectionPort == that.connectionPort;
     }
 

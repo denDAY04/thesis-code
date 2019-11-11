@@ -1,4 +1,4 @@
-package edu.dk.asj.dpm.network.requests;
+package edu.dk.asj.dpm.network.packets;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;

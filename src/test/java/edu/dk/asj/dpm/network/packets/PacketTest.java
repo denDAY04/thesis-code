@@ -1,4 +1,4 @@
-package edu.dk.asj.dpm.network.requests;
+package edu.dk.asj.dpm.network.packets;
 
 import edu.dk.asj.dpm.vault.VaultFragment;
 import org.junit.jupiter.api.DisplayName;
@@ -26,13 +26,13 @@ class PacketTest {
     @Test
     @DisplayName("UserAuthPacket I/O")
     void userAuthPacketIO() {
-        UserAuthPacket userAuthPacket = new UserAuthPacket(1337);
-        byte[] data = userAuthPacket.serialize();
+        DiscoveryEchoPacket discoveryEchoPacket = new DiscoveryEchoPacket(1337);
+        byte[] data = discoveryEchoPacket.serialize();
         assertNotNull(data, "Data array is null");
 
         Packet packet = Packet.deserialize(data);
         assertNotNull(packet, "De-serialized packet is null");
-        assertSame(userAuthPacket.getClass(), packet.getClass(), "Unexpected de-serialized packet class");
-        assertEquals(userAuthPacket, packet, "Packets are not equal");
+        assertSame(discoveryEchoPacket.getClass(), packet.getClass(), "Unexpected de-serialized packet class");
+        assertEquals(discoveryEchoPacket, packet, "Packets are not equal");
     }
 }
