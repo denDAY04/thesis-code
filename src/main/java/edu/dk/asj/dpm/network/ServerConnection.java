@@ -29,16 +29,25 @@ public class ServerConnection extends Thread implements AutoCloseable {
     private PacketHandler packetHandler;
     private int port;
 
-    private ServerConnection(PacketHandler packetHandler, int port) {
-        super("server-p:"+port);
+    private ServerConnection(PacketHandler packetHandler) {
         this.packetHandler = packetHandler;
-        this.port = port;
+        try {
+            server = AsynchronousServerSocketChannel.open();
+            server.bind(new InetSocketAddress(0));
+
+            port = ((InetSocketAddress)server.getLocalAddress()).getPort();
+            setName("server-p:" + port);
+        } catch (IOException e) {
+            LOGGER.error("Could not bind server socket", e);
+            cleanUp();
+            throw new IllegalStateException("Failed to open server connection");
+        }
     }
 
-    public static ServerConnection open(PacketHandler packetHandler, int port) {
+    public static ServerConnection open(PacketHandler packetHandler) {
         Objects.requireNonNull(packetHandler, "Request processor must not be null");
 
-        ServerConnection connection = new ServerConnection(packetHandler, port);
+        ServerConnection connection = new ServerConnection(packetHandler);
         connection.start();
 
         LOGGER.info("Started server connection");
@@ -48,11 +57,6 @@ public class ServerConnection extends Thread implements AutoCloseable {
     @Override
     public void run() {
         super.run();
-
-        if (!openConnection()) {
-            cleanUp();
-            return;
-        }
 
         if (!acceptConnection()) {
             cleanUp();;
@@ -73,21 +77,17 @@ public class ServerConnection extends Thread implements AutoCloseable {
         cleanUp();
     }
 
+    /**
+     * Get the server's port number after it has been opened.
+     * @return the port number.
+     */
+    public int getPort() {
+        return port;
+    }
+
     @Override
     public void close() {
         cleanUp();
-    }
-
-    private boolean openConnection() {
-        try {
-            server = AsynchronousServerSocketChannel.open();
-            server.bind(new InetSocketAddress(port));
-            return true;
-        } catch (IOException e) {
-            LOGGER.error("Could not bind server socket", e);
-            packetHandler.error("Failed to open server connection");
-        }
-        return false;
     }
 
     private boolean acceptConnection() {
@@ -167,7 +167,7 @@ public class ServerConnection extends Thread implements AutoCloseable {
                 connection.close();
             } catch (IOException e) {
                 LOGGER.error("Failed to clean up connection", e);
-                packetHandler.error("Clean-up failed for server connection");
+//                packetHandler.error("Clean-up failed for server connection");
             }
         }
 
@@ -176,7 +176,7 @@ public class ServerConnection extends Thread implements AutoCloseable {
                 server.close();
             } catch (IOException e) {
                 LOGGER.error("Failed to clean up server", e);
-                packetHandler.error("Clean-up failed for server connection");
+//                packetHandler.error("Clean-up failed for server connection");
             }
         }
     }

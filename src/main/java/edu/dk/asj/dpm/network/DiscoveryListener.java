@@ -1,5 +1,6 @@
 package edu.dk.asj.dpm.network;
 
+import edu.dk.asj.dpm.network.packets.DiscoveryEchoPacket;
 import edu.dk.asj.dpm.network.packets.DiscoveryPacket;
 import edu.dk.asj.dpm.network.packets.Packet;
 import edu.dk.asj.dpm.util.BufferHelper;
@@ -17,23 +18,28 @@ import java.net.StandardProtocolFamily;
 import java.net.StandardSocketOptions;
 import java.nio.ByteBuffer;
 import java.nio.channels.DatagramChannel;
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.Objects;
 
 public class DiscoveryListener extends Thread implements AutoCloseable {
     private static final Logger LOGGER = LoggerFactory.getLogger(DiscoveryListener.class);
     private static final int BUFFER_CAPACITY = 1000;
+    private static final long DISCOVERY_TIMEOUT_MS = 1000 * 1;
 
     static final String PEER_GROUP_ADDRESS = "232.0.0.0";
     static final int PEER_GROUP_PORT = 35587;
 
     private DatagramChannel channel;
-    private final PacketHandler<DiscoveryPacket> packetHandler;
+    private final DiscoveryHandler packetHandler;
     private final BigInteger networkId;
+    private final ByteBuffer discoveryBuffer;
 
-    private DiscoveryListener(PacketHandler<DiscoveryPacket> packetHandler, BigInteger networkId) {
+    private DiscoveryListener(DiscoveryHandler packetHandler, BigInteger networkId) {
         super("discovery-listener");
         this.packetHandler = packetHandler;
         this.networkId = networkId;
+         discoveryBuffer = ByteBuffer.allocate(BUFFER_CAPACITY);
     }
 
     /**
@@ -43,7 +49,7 @@ public class DiscoveryListener extends Thread implements AutoCloseable {
      *                  addressed to this network ID.
      * @return the listener.
      */
-    public static DiscoveryListener start(PacketHandler<DiscoveryPacket> handler, BigInteger networkId) {
+    public static DiscoveryListener start(DiscoveryHandler handler, BigInteger networkId) {
         Objects.requireNonNull(handler, "Handler may not be null");
         Objects.requireNonNull(networkId, "Network ID must not be null");
 
@@ -62,8 +68,57 @@ public class DiscoveryListener extends Thread implements AutoCloseable {
             return;
         }
 
-        listen();
+        LOGGER.debug("Listening for discovery requests");
+        boolean threwError;
+        do {
+            threwError = listenForDiscoveries();
+            try {
+                sleep(50);
+            } catch (InterruptedException e) {
+                // do nothing
+            }
+        } while (!threwError);
+
         cleanUp();
+    }
+
+    public synchronized Deque<ClientConnection> getNetworkConnections() throws IOException {
+        LOGGER.info("Getting network connections");
+
+        // send discovery packet to network
+        DiscoveryPacket packet = new DiscoveryPacket(networkId);
+        ByteBuffer sendBuffer = ByteBuffer.wrap(packet.serialize());
+        try {
+            channel.send(sendBuffer, new InetSocketAddress(PEER_GROUP_ADDRESS, PEER_GROUP_PORT));
+        } catch (IOException e) {
+            LOGGER.error("Could not send discovery request", e);
+            throw new IOException("Cloud not discover network - sending request");
+        }
+
+        // listen for echo replies and establish connections
+        Deque<ClientConnection> connections = new ArrayDeque<>();
+        ByteBuffer receiveBuffer = ByteBuffer.allocate(BUFFER_CAPACITY);
+        long discoveryEndTime = System.currentTimeMillis() + DISCOVERY_TIMEOUT_MS;
+
+        while (System.currentTimeMillis() < discoveryEndTime) {
+            SocketAddress sender = channel.receive(receiveBuffer);
+            if (sender != null) {
+                LOGGER.debug("Receiver discovery echo from {}", sendBuffer);
+                Packet response = Packet.deserialize(BufferHelper.readAndClear(receiveBuffer));
+                if (response instanceof DiscoveryEchoPacket) {
+                    connections.add(ClientConnection.prepare(sender));
+                } else {
+                    LOGGER.warn("Unexpected discovery reply type {}", response.getClass());
+                }
+            } else {
+                try {
+                    sleep(50);
+                } catch (InterruptedException e) {
+                    // do nothing
+                }
+            }
+        }
+        return connections;
     }
 
     @Override
@@ -93,6 +148,7 @@ public class DiscoveryListener extends Thread implements AutoCloseable {
                     .setOption(StandardSocketOptions.IP_MULTICAST_IF, nic)
                     .setOption(StandardSocketOptions.IP_MULTICAST_LOOP, false);
             channel.join(InetAddress.getByName(PEER_GROUP_ADDRESS), nic);
+            channel.configureBlocking(false);
 
             return true;
         } catch (IOException e) {
@@ -102,38 +158,36 @@ public class DiscoveryListener extends Thread implements AutoCloseable {
         }
     }
 
-    private void listen() {
-        ByteBuffer buffer = ByteBuffer.allocate(BUFFER_CAPACITY);
+    private synchronized boolean listenForDiscoveries() {
         SocketAddress sender;
+        boolean hasError = false;
 
-        while (true) {
-            LOGGER.debug("Listening for requests");
-            try {
-                sender = channel.receive(buffer);
+        try {
+            sender = channel.receive(discoveryBuffer);
+            if (sender != null) {
                 LOGGER.debug("Received request from " + sender);
-            } catch (IOException e) {
-                LOGGER.error("Unexpected exception while receiving request", e);
-                packetHandler.error("An error occurred while listening for discovery requests");
-                return;
-            }
+                Packet request = Packet.deserialize(BufferHelper.readAndClear(discoveryBuffer));
 
-            Packet request = Packet.deserialize(BufferHelper.readAndClear(buffer));
-            if (!isValidRequest(request)) {
-                continue;
-            };
-
-            Packet response = packetHandler.process((DiscoveryPacket) request, sender);
-            if (response != null) {
-                ByteBuffer responseBuffer = ByteBuffer.wrap(response.serialize());
-                try {
-                    channel.send(responseBuffer, sender);
-                } catch (IOException e) {
-                    LOGGER.warn("Unexpected exception while sending response", e);
-                    packetHandler.error("An error occurred while sending discovery response");
-                    return;
+                if (isValidRequest(request)) {
+                    Packet response = packetHandler.process(request, sender);
+                    if (response != null) {
+                        ByteBuffer responseBuffer = ByteBuffer.wrap(response.serialize());
+                        try {
+                            channel.send(responseBuffer, sender);
+                        } catch (IOException e) {
+                            LOGGER.warn("Unexpected exception while sending response", e);
+                            packetHandler.error("An error occurred while sending discovery response");
+                            hasError = true;
+                        }
+                    }
                 }
             }
+        } catch (IOException e) {
+            LOGGER.error("Unexpected exception while receiving request", e);
+            packetHandler.error("An error occurred while listening for discovery requests");
+            hasError = true;
         }
+        return hasError;
     }
 
     private boolean isValidRequest(Packet request) {

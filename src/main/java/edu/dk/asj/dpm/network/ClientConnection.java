@@ -24,7 +24,7 @@ public class ClientConnection extends Thread implements AutoCloseable {
     private static final long TIMEOUT = 5L;
 
     private final SocketAddress destination;
-    private final Packet request;
+    private Packet request;
     private AsynchronousSocketChannel connection;
 
     private Packet response;
@@ -51,6 +51,39 @@ public class ClientConnection extends Thread implements AutoCloseable {
         connection.start();
         LOGGER.info("Started client connection");
         return connection;
+    }
+
+    /**
+     * Construct a client connection in a separate thread. This thread is not yet started. In order to start the thread
+     * you must first set the connection's request using {@link ClientConnection#setRequest(Packet)} and then start the
+     * connection using {@link ClientConnection#start()}.
+     * @param destination the destination of the connection.
+     * @return the initialized (but not started) connection.
+     */
+    public static ClientConnection prepare(SocketAddress destination) {
+        Objects.requireNonNull(destination, "Destination must not be null");
+
+        ClientConnection connection = new ClientConnection(destination, null);
+        LOGGER.info("Started client connection");
+        return connection;
+    }
+
+    @Override
+    public synchronized void start() {
+        if (request == null) {
+            throw new IllegalStateException("Connection does not have a request");
+        }
+        super.start();
+    }
+
+    /**
+     * Set the request to be sent with the connection. This method should only be used on a connection that was
+     * initialized using {@link ClientConnection#prepare(SocketAddress)}.
+     * @param request the request packet to be sent to the connection destination.
+     */
+    public void setRequest(Packet request) {
+        Objects.requireNonNull(request);
+        this.request = request;
     }
 
     /**
