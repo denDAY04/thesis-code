@@ -6,6 +6,7 @@ import edu.dk.asj.dpm.network.packets.FragmentPacket;
 import edu.dk.asj.dpm.network.packets.GetFragmentPacket;
 import edu.dk.asj.dpm.network.packets.Packet;
 import edu.dk.asj.dpm.properties.NetworkProperties;
+import edu.dk.asj.dpm.properties.PropertiesContainer;
 import edu.dk.asj.dpm.security.SecurityController;
 import edu.dk.asj.dpm.ui.UserInterface;
 import edu.dk.asj.dpm.vault.VaultFragment;
@@ -23,10 +24,12 @@ public class NetworkController implements DiscoveryHandler, PacketHandler {
     private static final Logger LOGGER = LoggerFactory.getLogger(NetworkController.class);
 
     private DiscoveryListener discoveryListener;
+    private final PropertiesContainer propertiesContainer;
     private final BigInteger networkId;
 
-    public NetworkController(NetworkProperties properties) {
+    public NetworkController(NetworkProperties properties, PropertiesContainer propertiesContainer) {
         networkId = properties.getNetworkId();
+        this.propertiesContainer = propertiesContainer;
     }
 
     /**
@@ -103,14 +106,16 @@ public class NetworkController implements DiscoveryHandler, PacketHandler {
     public Packet process(Packet request) {
         if (request instanceof FragmentPacket) {
             VaultFragment fragment = ((FragmentPacket) request).getFragment();
-            boolean saved = SecurityController.getInstance().saveFragment(fragment);
+            String path = propertiesContainer.getStorageProperties().getFragmentPath();
+            boolean saved = SecurityController.getInstance().saveFragment(fragment, path);
             if (!saved) {
                 error("Failed to save new fragment");
             }
             return null;
 
         } else if (request instanceof GetFragmentPacket) {
-            return new FragmentPacket(SecurityController.getInstance().loadFragment());
+            String path = propertiesContainer.getStorageProperties().getFragmentPath();
+            return new FragmentPacket(SecurityController.getInstance().loadFragment(path));
 
         } else {
             LOGGER.warn("Unknown request {}", request.getClass());

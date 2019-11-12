@@ -1,8 +1,5 @@
 package edu.dk.asj.dpm.security;
 
-import edu.dk.asj.dpm.network.DiscoveryHandler;
-import edu.dk.asj.dpm.properties.NetworkProperties;
-import edu.dk.asj.dpm.properties.PropertiesContainer;
 import edu.dk.asj.dpm.util.StorageHelper;
 import edu.dk.asj.dpm.vault.VaultFragment;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
@@ -135,10 +132,14 @@ public class SecurityController {
         }
     }
 
-    public VaultFragment loadFragment() {
-        String path = PropertiesContainer.getInstance().getStorageProperties().getFragmentPath();
+    /**
+     * Load the local fragment from the device.
+     * @param storagePath the path on where to find the fragment.
+     * @return the loaded fragment, or null.
+     */
+    public VaultFragment loadFragment(String storagePath) {
         StandardOpenOption[] fileOptions = new StandardOpenOption[] { READ };
-        try (InputStream fileStream = Files.newInputStream(Paths.get(path), fileOptions);
+        try (InputStream fileStream = Files.newInputStream(Paths.get(storagePath), fileOptions);
              ObjectInputStream objectStream = new ObjectInputStream(fileStream)) {
 
             // TODO decrypt fragment
@@ -153,10 +154,15 @@ public class SecurityController {
         }
     }
 
-    public boolean saveFragment(VaultFragment fragment) {
-        String path = PropertiesContainer.getInstance().getStorageProperties().getFragmentPath();
+    /**
+     * Save a fragment to the node's device at the given storage path.
+     * @param fragment the fragment to be saved.
+     * @param storagePath the path to where the fragment will be saved.
+     * @return true if the save succeeded, false otherwise.
+     */
+    public boolean saveFragment(VaultFragment fragment, String storagePath) {
         StandardOpenOption[] fileOptions = new StandardOpenOption[] { WRITE, TRUNCATE_EXISTING };
-        try (OutputStream fileStream = Files.newOutputStream(StorageHelper.getOrCreateStoragePath(path), fileOptions);
+        try (OutputStream fileStream = Files.newOutputStream(StorageHelper.getOrCreateStoragePath(storagePath), fileOptions);
              ObjectOutputStream objectWriter = new ObjectOutputStream(fileStream)) {
 
             // TODO encrypt fragment

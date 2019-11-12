@@ -13,7 +13,7 @@ class PropertiesContainerTest {
     @DisplayName("Load properties from file")
     void loadProperties() throws IOException {
         PropertiesContainer.loadProperties();
-        PropertiesContainer properties = PropertiesContainer.getInstance();
+        PropertiesContainer properties = PropertiesContainer.loadProperties();
 
         assertNotNull(properties, "Properties container is null");
         assertNotNull(properties.getStorageProperties(),"Storage properties is null");
