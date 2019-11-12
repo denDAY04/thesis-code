@@ -106,7 +106,7 @@ public class DiscoveryListener extends Thread implements AutoCloseable {
                 LOGGER.debug("Receiver discovery echo from {}", sendBuffer);
                 Packet response = Packet.deserialize(BufferHelper.readAndClear(receiveBuffer));
                 if (response instanceof DiscoveryEchoPacket) {
-                    connections.add(ClientConnection.prepare(sender));
+                    connections.offer(ClientConnection.prepare(sender));
                 } else {
                     LOGGER.warn("Unexpected discovery reply type {}", response.getClass());
                 }
@@ -169,7 +169,7 @@ public class DiscoveryListener extends Thread implements AutoCloseable {
                 Packet request = Packet.deserialize(BufferHelper.readAndClear(discoveryBuffer));
 
                 if (isValidRequest(request)) {
-                    Packet response = packetHandler.process(request, sender);
+                    Packet response = packetHandler.process((DiscoveryPacket) request, sender);
                     if (response != null) {
                         ByteBuffer responseBuffer = ByteBuffer.wrap(response.serialize());
                         try {

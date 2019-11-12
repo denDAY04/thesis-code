@@ -12,10 +12,10 @@ class PropertiesContainerTest {
     @Test
     @DisplayName("Load properties from file")
     void loadProperties() throws IOException {
-        PropertiesContainer properties = PropertiesContainer.loadProperties();
+        PropertiesContainer.loadProperties();
+        PropertiesContainer properties = PropertiesContainer.getInstance();
 
         assertNotNull(properties, "Properties container is null");
-
         assertNotNull(properties.getStorageProperties(),"Storage properties is null");
         assertNotNull(properties.getStorageProperties().getFragmentPath(), "Fragment storage path is null");
         assertNotNull(properties.getStorageProperties().getNetworkPropertiesPath(), "Network properties storage path is null");

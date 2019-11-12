@@ -14,7 +14,6 @@ public class UserInterface {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(UserInterface.class);
 
-    private static PropertiesContainer properties;
     private static NetworkProperties networkProperties;
     private static TextIO textUI;
     private static byte[] pwHash;
@@ -77,7 +76,7 @@ public class UserInterface {
 
     private static void loadProperties() {
         try {
-            properties = PropertiesContainer.loadProperties();
+            PropertiesContainer.loadProperties();
         } catch (IOException e) {
             fatal("Failed to load application properties");
         }
@@ -86,7 +85,7 @@ public class UserInterface {
     private static void configureApplication() {
         message("Loading configuration...");
 
-        String path = properties.getStorageProperties().getNetworkPropertiesPath();
+        String path = PropertiesContainer.getInstance().getStorageProperties().getNetworkPropertiesPath();
         networkProperties = NetworkProperties.loadFromStorage(path);
         if (networkProperties != null) {
             message("Configuration loaded");

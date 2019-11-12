@@ -6,35 +6,41 @@ import edu.dk.asj.dpm.network.packets.FragmentPacket;
 import edu.dk.asj.dpm.network.packets.GetFragmentPacket;
 import edu.dk.asj.dpm.network.packets.Packet;
 import edu.dk.asj.dpm.properties.NetworkProperties;
+import edu.dk.asj.dpm.security.SecurityController;
+import edu.dk.asj.dpm.ui.UserInterface;
 import edu.dk.asj.dpm.vault.VaultFragment;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.net.SocketAddress;
 import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
-import java.util.Stack;
 
 public class NetworkController implements DiscoveryHandler, PacketHandler {
     private static final Logger LOGGER = LoggerFactory.getLogger(NetworkController.class);
 
-    private List<ServerConnection> serverConnections;
     private DiscoveryListener discoveryListener;
     private final BigInteger networkId;
 
     public NetworkController(NetworkProperties properties) {
-        serverConnections = new ArrayList<>();
         networkId = properties.getNetworkId();
     }
 
+    /**
+     * Start the network discovery listener, waiting for discovery requests from the network.
+     */
     public void startDiscoveryListener() {
         discoveryListener = DiscoveryListener.start(this, networkId);
     }
 
+    /**
+     * Get vault fragments from the node network.
+     * @return the node network's fragments.
+     * @throws IOException if an I/O error occurred.
+     */
     public VaultFragment[] getNetworkFragments() throws IOException {
         Deque<ClientConnection> connections = discoveryListener.getNetworkConnections();
         if (connections.isEmpty()) {
@@ -46,49 +52,74 @@ public class NetworkController implements DiscoveryHandler, PacketHandler {
             connection.start();
         });
 
+        List<VaultFragment> fragments = new ArrayList<>(connections.size());
+        boolean hasError = false;
+        while (!connections.isEmpty()) {
+            ClientConnection peek = connections.peek();
+            if (peek.getResponse() != null) {
+                ClientConnection connection = connections.poll();
+                if (connection.getResponse() instanceof FragmentPacket) {
+                    fragments.add(((FragmentPacket) connection.getResponse()).getFragment());
+                } else {
+                    LOGGER.warn("Unexpected reply to network fragment request. Expected {} but was {}", FragmentPacket.class, connection.getClass());
+                    hasError = true;
+                }
 
+            } else if (peek.getError() != null) {
+                LOGGER.warn("Fragment request error: {}", peek.getError());
+                hasError = true;
+            } else {
+                // connection not yet finished/ready
+                try {
+                    Thread.sleep(10);
+                } catch (InterruptedException e) {
+                    // do nothing
+                }
+            }
 
-        /*
-            while deque is not empty
-                peek deque
-                if conn ready
-                    pop deque
-                    get error or vault fragment
-                    if error
-                        throw error
-                    endif
-                    add fragment
-                endif
-            endwhile
-         */
+            if (hasError) {
+                connections.forEach(ClientConnection::close);
+                throw new IOException("Failed to get network fragments");
+            }
+        }
+        return fragments.toArray(new VaultFragment[0]);
+    }
 
+    /**
+     * Send the new fragments to the node network.
+     * @param fragments the new fragments.
+     */
+    public void sendNetworkFragments(VaultFragment[] fragments) {
+        // TODO implement
     }
 
     @Override
-    public Packet process(Packet packet, SocketAddress sender) {
-        if (packet instanceof DiscoveryPacket) {
-            ServerConnection serverConnection = ServerConnection.open(this);
-            serverConnections.add(serverConnection);
-            return new DiscoveryEchoPacket(serverConnection.getPort());
-        } else if (packet instanceof DiscoveryEchoPacket) {
-            FragmentPacket fragmentPacket = new FragmentPacket();
-            ClientConnection clientConnection = ClientConnection.send(fragmentPacket, sender);
-        }
+    public DiscoveryEchoPacket process(DiscoveryPacket packet, SocketAddress sender) {
+        ServerConnection connection = ServerConnection.open(this);
+        return new DiscoveryEchoPacket(connection.getPort());
+    }
 
+    @Override
+    public Packet process(Packet request) {
+        if (request instanceof FragmentPacket) {
+            VaultFragment fragment = ((FragmentPacket) request).getFragment();
+            boolean saved = SecurityController.getInstance().saveFragment(fragment);
+            if (!saved) {
+                error("Failed to save new fragment");
+            }
+            return null;
+
+        } else if (request instanceof GetFragmentPacket) {
+            return new FragmentPacket(SecurityController.getInstance().loadFragment());
+
+        } else {
+            LOGGER.warn("Unknown request {}", request.getClass());
+            return null;
+        }
     }
 
     @Override
     public void error(String error) {
-
-    }
-
-    @Override
-    public Packet process(Packet request, Closeable connection) {
-        return null;
-    }
-
-    @Override
-    public void error(String error, Closeable connection) {
-
+        UserInterface.error("Network error: " + error);
     }
 }

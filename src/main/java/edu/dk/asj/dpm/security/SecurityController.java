@@ -1,8 +1,24 @@
 package edu.dk.asj.dpm.security;
 
+import edu.dk.asj.dpm.network.DiscoveryHandler;
+import edu.dk.asj.dpm.properties.NetworkProperties;
+import edu.dk.asj.dpm.properties.PropertiesContainer;
+import edu.dk.asj.dpm.util.StorageHelper;
+import edu.dk.asj.dpm.vault.VaultFragment;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
@@ -11,11 +27,16 @@ import java.security.Security;
 import java.util.Arrays;
 import java.util.Objects;
 
+import static java.nio.file.StandardOpenOption.READ;
+import static java.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
+import static java.nio.file.StandardOpenOption.WRITE;
+
 /**
  * Singleton controlling the application's different security schemes.
  */
 public class SecurityController {
 
+    private static final Logger LOGGER = LoggerFactory.getLogger(SecurityController.class);
     private static final String RANDOM_GENERATOR_SCHEME = "DRBG";
     private static final String HASH_SCHEME = "SHA3-512";
 
@@ -111,6 +132,43 @@ public class SecurityController {
         if (mpHash != null) {
             Arrays.fill(mpHash, (byte) 0x00);
             mpHash = null;
+        }
+    }
+
+    public VaultFragment loadFragment() {
+        String path = PropertiesContainer.getInstance().getStorageProperties().getFragmentPath();
+        StandardOpenOption[] fileOptions = new StandardOpenOption[] { READ };
+        try (InputStream fileStream = Files.newInputStream(Paths.get(path), fileOptions);
+             ObjectInputStream objectStream = new ObjectInputStream(fileStream)) {
+
+            // TODO decrypt fragment
+
+            return (VaultFragment) objectStream.readObject();
+        } catch (IOException e) {
+            LOGGER.warn("Could not read fragment file", e);
+            return null;
+        } catch (ClassNotFoundException e) {
+            LOGGER.error("Fragment file data was corrupted", e);
+            return null;
+        }
+    }
+
+    public boolean saveFragment(VaultFragment fragment) {
+        String path = PropertiesContainer.getInstance().getStorageProperties().getFragmentPath();
+        StandardOpenOption[] fileOptions = new StandardOpenOption[] { WRITE, TRUNCATE_EXISTING };
+        try (OutputStream fileStream = Files.newOutputStream(StorageHelper.getOrCreateStoragePath(path), fileOptions);
+             ObjectOutputStream objectWriter = new ObjectOutputStream(fileStream)) {
+
+            // TODO encrypt fragment
+
+            objectWriter.writeObject(fragment);
+            return true;
+        } catch (FileNotFoundException e) {
+            LOGGER.error("Could not create fragment file", e);
+            return false;
+        } catch (IOException e) {
+            LOGGER.error("Could not write to fragment file", e);
+            return false;
         }
     }
 

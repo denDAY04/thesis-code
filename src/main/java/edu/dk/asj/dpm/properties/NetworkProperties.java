@@ -1,6 +1,7 @@
 package edu.dk.asj.dpm.properties;
 
 import edu.dk.asj.dpm.security.SecurityController;
+import edu.dk.asj.dpm.util.StorageHelper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -121,7 +122,14 @@ public class NetworkProperties implements Serializable {
 
         UUID nodeId = UUID.randomUUID();
         NetworkProperties properties = new NetworkProperties(nodeId, networkId, networkIdSeed);
-        return saveToStorage(properties, getOrCreateStoragePath(storagePath));
+        Path path;
+        try {
+            path = StorageHelper.getOrCreateStoragePath(storagePath);
+        } catch (IOException e) {
+            LOGGER.warn("Could not get or create storage path", e);
+            return null;
+        }
+        return saveToStorage(properties, path);
     }
 
     private static NetworkProperties saveToStorage(NetworkProperties properties, Path path) {
@@ -140,17 +148,4 @@ public class NetworkProperties implements Serializable {
         }
     }
 
-    private static Path getOrCreateStoragePath(String storagePath) {
-        Path path = Paths.get(storagePath);
-        if (Files.notExists(path)) {
-            try {
-                Files.createDirectories(path.getParent());
-                Files.createFile(path);
-            } catch (IOException e) {
-                System.err.println("Could not create network properties file");
-                return null;
-            }
-        }
-        return path;
-    }
 }

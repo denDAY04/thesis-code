@@ -9,6 +9,7 @@ import java.util.Properties;
  */
 public class PropertiesContainer {
 
+    private static PropertiesContainer instance;
     private final StorageProperties storageProperties;
 
     private PropertiesContainer(StorageProperties storageProperties) {
@@ -16,17 +17,27 @@ public class PropertiesContainer {
     }
 
     /**
+     * Get the properties container.
+     * @return the container.
+     */
+    public static PropertiesContainer getInstance() {
+        if (instance == null) {
+            throw new IllegalStateException("Properties not loaded");
+        }
+        return instance;
+    }
+
+    /**
      * Load properties from the <i>application.properties</i> file in the classloader.
-     * @return an initialised properties container.
      * @throws IOException if an error occurred when trying to read the file
      */
-    public static PropertiesContainer loadProperties() throws IOException {
+    public static void loadProperties() throws IOException {
         Properties properties = new Properties();
         properties.load(PropertiesContainer.class.getResourceAsStream("/application.properties"));
 
         StorageProperties storageProperties = new StorageProperties(properties);
 
-        return new PropertiesContainer(storageProperties);
+        instance = new PropertiesContainer(storageProperties);
     }
 
     /**

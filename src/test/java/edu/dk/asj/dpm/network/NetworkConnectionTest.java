@@ -28,11 +28,10 @@ class NetworkConnectionTest {
     @DisplayName("Client can communicate with server")
     void connectionTest() throws InterruptedException {
         ServerPacketHandler handler = new ServerPacketHandler();
-        int serverPort = 47201;
         testClientRequest = new DiscoveryPacket(BigInteger.ONE);
 
-        ServerConnection server = ServerConnection.open(handler, serverPort);
-        ClientConnection client = ClientConnection.send(testClientRequest, new InetSocketAddress("localhost", serverPort));
+        ServerConnection server = ServerConnection.open(handler);
+        ClientConnection client = ClientConnection.send(testClientRequest, new InetSocketAddress("localhost", server.getPort()));
 
         server.join();
         client.join();
@@ -53,11 +52,6 @@ class NetworkConnectionTest {
 
             testServerResponse = new DiscoveryEchoPacket(14570);
             return testServerResponse;
-        }
-
-        @Override
-        public Packet process(Packet request, SocketAddress sender) {
-            return null;
         }
 
         @Override
