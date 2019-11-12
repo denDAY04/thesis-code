@@ -1,8 +1,7 @@
-package edu.dk.asj.dpm;
+package edu.dk.asj.dpm.security;
 
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 
-import java.math.BigInteger;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;

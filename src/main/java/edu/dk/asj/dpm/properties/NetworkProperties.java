@@ -1,7 +1,6 @@
 package edu.dk.asj.dpm.properties;
 
-import edu.dk.asj.dpm.SecurityScheme;
-import edu.dk.asj.dpm.UserInterface;
+import edu.dk.asj.dpm.security.SecurityScheme;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

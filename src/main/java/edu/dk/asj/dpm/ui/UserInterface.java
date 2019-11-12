@@ -1,5 +1,6 @@
-package edu.dk.asj.dpm;
+package edu.dk.asj.dpm.ui;
 
+import edu.dk.asj.dpm.security.SecurityScheme;
 import edu.dk.asj.dpm.properties.NetworkProperties;
 import edu.dk.asj.dpm.properties.PropertiesContainer;
 import org.beryx.textio.TextIO;

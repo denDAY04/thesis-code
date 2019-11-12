@@ -1,6 +1,6 @@
 package edu.dk.asj.dpm.vault;
 
-import edu.dk.asj.dpm.SecurityScheme;
+import edu.dk.asj.dpm.security.SecurityScheme;
 import edu.dk.asj.dpm.util.BufferHelper;
 
 import java.io.ByteArrayInputStream;

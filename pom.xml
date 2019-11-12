@@ -73,7 +73,7 @@
                         <manifest>
                             <addClasspath>true</addClasspath>
                             <classpathPrefix>lib/</classpathPrefix>
-                            <mainClass>edu.dk.asj.dpm.UserInterface</mainClass>
+                            <mainClass>edu.dk.asj.dpm.ui.UserInterface</mainClass>
                         </manifest>
                     </archive>
                 </configuration>

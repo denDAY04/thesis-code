@@ -1,6 +1,6 @@
 package edu.dk.asj.dpm.properties;
 
-import edu.dk.asj.dpm.SecurityScheme;
+import edu.dk.asj.dpm.security.SecurityScheme;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer.OrderAnnotation;
 import org.junit.jupiter.api.Order;
@@ -10,7 +10,6 @@ import org.junit.jupiter.api.TestMethodOrder;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
-import java.util.Arrays;
 
 import static org.junit.jupiter.api.Assertions.*;
 
