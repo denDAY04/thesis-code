@@ -2,26 +2,29 @@ package edu.dk.asj.dpm.security;
 
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 
+import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
 import java.security.SecureRandom;
 import java.security.Security;
+import java.util.Arrays;
+import java.util.Objects;
 
 /**
- * Singleton managing the application's different security schemes.
+ * Singleton controlling the application's different security schemes.
  */
-public class SecurityScheme {
+public class SecurityController {
 
     private static final String RANDOM_GENERATOR_SCHEME = "DRBG";
     private static final String HASH_SCHEME = "SHA3-512";
 
-    private static SecurityScheme instance;
+    private static SecurityController instance;
 
     private byte[] mpHash;
 
 
-    private SecurityScheme() {
+    private SecurityController() {
         Security.addProvider(new BouncyCastleProvider());
 
         try {
@@ -43,9 +46,9 @@ public class SecurityScheme {
      * Get the singleton instance.
      * @return the security scheme instance.
      */
-    public static SecurityScheme getInstance() {
+    public static SecurityController getInstance() {
         if (instance == null) {
-            instance = new SecurityScheme();
+            instance = new SecurityController();
         }
         return instance;
     }
@@ -77,18 +80,42 @@ public class SecurityScheme {
     }
 
     /**
-     * Get the user's master password verification hash.
-     * @return the has.
+     * Check if a user's input master password is equal to the stored MP hash.
+     * @param inputMp the user's master password input. It must not have been processed with any hashing prior to use
+     *                in this method.
+     * @return true if the input is equal to the stored master password verification hash, after processing the user
+     * input.
      */
-    public byte[] getMpHash() {
-        return mpHash;
+    public boolean isMasterPassword(String inputMp) {
+        if (mpHash == null || inputMp == null || inputMp.isBlank()) {
+            return false;
+        }
+        byte[] inputHash = hash(inputMp);
+        return Arrays.equals(mpHash, inputHash);
     }
 
     /**
-     * Set the master password verification hash.
-     * @param hash the hash
+     * Store a verification hash of the user's master password in-memory.
+     * @param inputMp the user's input for their master password. It must not have been processed with any hashing prior
+     *                to use in this method.
      */
-    public void setMpHash(byte[] hash) {
-        mpHash = hash;
+    public void setMasterPassword(String inputMp) {
+        this.mpHash = hash(inputMp);
+    }
+
+    /**
+     * Clear the in-memory stored master password verification hash. This method wipes the storage space of the hash
+     * and then discards the handle.
+     */
+    public void clearMasterPassword() {
+        if (mpHash != null) {
+            Arrays.fill(mpHash, (byte) 0x00);
+            mpHash = null;
+        }
+    }
+
+    private byte[] hash(String s) {
+        Objects.requireNonNull(s);
+        return getHashFunction().digest(s.getBytes(StandardCharsets.UTF_8));
     }
 }

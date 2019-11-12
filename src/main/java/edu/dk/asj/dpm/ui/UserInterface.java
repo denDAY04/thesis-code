@@ -1,6 +1,6 @@
 package edu.dk.asj.dpm.ui;
 
-import edu.dk.asj.dpm.security.SecurityScheme;
+import edu.dk.asj.dpm.security.SecurityController;
 import edu.dk.asj.dpm.properties.NetworkProperties;
 import edu.dk.asj.dpm.properties.PropertiesContainer;
 import org.beryx.textio.TextIO;
@@ -9,8 +9,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
 
 public class UserInterface {
 
@@ -25,47 +23,6 @@ public class UserInterface {
         textUI = TextIoFactory.getTextIO();
         loadProperties();
         configureApplication();
-    }
-
-    private static void configureApplication() {
-        message("Loading configuration...");
-
-        String path = properties.getStorageProperties().getNetworkPropertiesPath();
-        networkProperties = NetworkProperties.loadFromStorage(path);
-        if (networkProperties != null) {
-            message("Configuration loaded");
-        } else {
-            error("Configuration not found");
-            message("Initiating new configuration");
-
-            String pwPrompt = "Input Master Password (must be the same for each device): ";
-            String password = textUI.newStringInputReader()
-                    .withInputMasking(true)
-                    .read(pwPrompt);
-            MessageDigest hashFunction = SecurityScheme.getInstance().getHashFunction();
-            hashFunction.update(password.getBytes(StandardCharsets.UTF_8));
-            SecurityScheme.getInstance().setMpHash(hashFunction.digest());
-
-            String firstConfigPrompt = "Is this the first device you're configuring? ";
-            Boolean firstConfig = textUI.newBooleanInputReader()
-                    .withFalseInput("n")
-                    .withTrueInput("y")
-                    .read(firstConfigPrompt);
-            String networkIdSeed;
-            if (firstConfig) {
-                networkIdSeed = Long.toString(System.currentTimeMillis(), 16);
-            } else {
-                String seedPrompt = "Input Network Seed (shown at first device configuration): ";
-                networkIdSeed = textUI.newStringInputReader().read(seedPrompt);
-            }
-
-            networkProperties = NetworkProperties.generate(password, networkIdSeed, path);
-            if (networkProperties == null) {
-                fatal("The new configuration could not be completed");
-            } else {
-                message("Configuration complete");
-            }
-        }
     }
 
     /**
@@ -124,5 +81,49 @@ public class UserInterface {
         } catch (IOException e) {
             fatal("Failed to load application properties");
         }
+    }
+
+    private static void configureApplication() {
+        message("Loading configuration...");
+
+        String path = properties.getStorageProperties().getNetworkPropertiesPath();
+        networkProperties = NetworkProperties.loadFromStorage(path);
+        if (networkProperties != null) {
+            message("Configuration loaded");
+        } else {
+            error("Configuration not found");
+            message("Initiating new configuration");
+
+            String pwPrompt = "Input Master Password (must be the same for each device): ";
+            String password = textUI.newStringInputReader()
+                    .withInputMasking(true)
+                    .read(pwPrompt);
+            SecurityController.getInstance().setMasterPassword(password);
+
+            String firstConfigPrompt = "Is this the first device you're configuring? ";
+            Boolean firstConfig = textUI.newBooleanInputReader()
+                    .withFalseInput("n")
+                    .withTrueInput("y")
+                    .read(firstConfigPrompt);
+            String networkIdSeed;
+            if (firstConfig) {
+                networkIdSeed = Long.toString(System.currentTimeMillis(), 16);
+            } else {
+                String seedPrompt = "Input Network Seed (shown at first device configuration): ";
+                networkIdSeed = textUI.newStringInputReader().read(seedPrompt);
+            }
+
+            networkProperties = NetworkProperties.generate(password, networkIdSeed, path);
+            if (networkProperties == null) {
+                fatal("The new configuration could not be completed");
+            } else {
+                message("Configuration complete");
+            }
+        }
+    }
+
+    private static void signOut() {
+        SecurityController.getInstance().clearMasterPassword();
+        textUI.getTextTerminal().println("Signed out");
     }
 }

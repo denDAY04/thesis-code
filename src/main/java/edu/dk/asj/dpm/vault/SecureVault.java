@@ -1,6 +1,6 @@
 package edu.dk.asj.dpm.vault;
 
-import edu.dk.asj.dpm.security.SecurityScheme;
+import edu.dk.asj.dpm.security.SecurityController;
 import edu.dk.asj.dpm.util.BufferHelper;
 
 import java.io.ByteArrayInputStream;
@@ -95,7 +95,7 @@ public class SecureVault implements Serializable {
             builders[i] = VaultFragment.builder(data.length);
         }
 
-        SecureRandom randomGenerator = SecurityScheme.getInstance().getRandomGenerator();
+        SecureRandom randomGenerator = SecurityController.getInstance().getRandomGenerator();
         for (int i = 0; i < data.length; i++) {
             int selector = randomGenerator.nextInt(count);
             builders[selector].addByte(i, data[i]);

@@ -1,6 +1,6 @@
 package edu.dk.asj.dpm.properties;
 
-import edu.dk.asj.dpm.security.SecurityScheme;
+import edu.dk.asj.dpm.security.SecurityController;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -112,10 +112,9 @@ public class NetworkProperties implements Serializable {
             throw new IllegalArgumentException("Storage path must not be null or blank");
         }
 
-        MessageDigest hashFunction = SecurityScheme.getInstance().getHashFunction();
+        MessageDigest hashFunction = SecurityController.getInstance().getHashFunction();
         hashFunction.update(masterPassword.getBytes(StandardCharsets.UTF_8));
         byte[] pwHash = hashFunction.digest();
-
         hashFunction.update(pwHash);
         hashFunction.update(networkIdSeed.getBytes(StandardCharsets.UTF_8));
         BigInteger networkId = new BigInteger(hashFunction.digest());

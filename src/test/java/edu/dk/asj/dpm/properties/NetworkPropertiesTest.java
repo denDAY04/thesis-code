@@ -1,6 +1,6 @@
 package edu.dk.asj.dpm.properties;
 
-import edu.dk.asj.dpm.security.SecurityScheme;
+import edu.dk.asj.dpm.security.SecurityController;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer.OrderAnnotation;
 import org.junit.jupiter.api.Order;
@@ -53,7 +53,7 @@ class NetworkPropertiesTest {
     }
 
     private BigInteger generateNetworkId() {
-        MessageDigest hashFunction = SecurityScheme.getInstance().getHashFunction();
+        MessageDigest hashFunction = SecurityController.getInstance().getHashFunction();
         hashFunction.update(PASSWORD.getBytes(StandardCharsets.UTF_8));
         byte[] mpHash = hashFunction.digest();
 
