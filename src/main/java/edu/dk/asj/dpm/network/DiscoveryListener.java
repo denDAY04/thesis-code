@@ -42,6 +42,10 @@ public class DiscoveryListener extends Thread implements AutoCloseable {
         this.networkId = networkId;
         discoveryBuffer = ByteBuffer.allocate(BUFFER_CAPACITY);
         isListening = false;
+
+        if (!openConnection()) {
+            cleanUp();
+        }
     }
 
     /**
@@ -66,11 +70,6 @@ public class DiscoveryListener extends Thread implements AutoCloseable {
     @Override
     public void run() {
         super.run();
-
-        if (!openConnection()) {
-            cleanUp();
-            return;
-        }
 
         boolean threwError = false;
         do {

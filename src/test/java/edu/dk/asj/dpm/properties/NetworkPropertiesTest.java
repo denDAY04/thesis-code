@@ -8,10 +8,10 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
 
 import java.math.BigInteger;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 @TestMethodOrder(OrderAnnotation.class)
 class NetworkPropertiesTest {
@@ -53,12 +53,6 @@ class NetworkPropertiesTest {
     }
 
     private BigInteger generateNetworkId() {
-        MessageDigest hashFunction = SecurityController.getInstance().getHashFunction();
-        hashFunction.update(PASSWORD.getBytes(StandardCharsets.UTF_8));
-        byte[] mpHash = hashFunction.digest();
-
-        hashFunction.update(mpHash);
-        hashFunction.update(NETWORK_ID_SEED.getBytes(StandardCharsets.UTF_8));
-        return new BigInteger(hashFunction.digest());
+        return SecurityController.getInstance().computeNetworkId(PASSWORD, NETWORK_ID_SEED);
     }
 }

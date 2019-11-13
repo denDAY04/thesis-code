@@ -24,12 +24,11 @@ class SecurityControllerTest {
     @DisplayName("Save fragment")
     void saveFragment() throws IOException {
         VaultFragment fragment = new VaultFragment(new int[]{0}, new byte[]{0x00}, 1);
-        String storagePath = "test-data/frag.data";
+        String fragmentPath = PropertiesContainer.loadProperties().getStorageProperties().getFragmentPath();
 
-        boolean saved = SecurityController.getInstance().saveFragment(fragment, storagePath);
+        boolean saved = SecurityController.getInstance().saveFragment(fragment, fragmentPath);
         assertTrue(saved, "Fragment was not saved");
 
-        String fragmentPath = PropertiesContainer.loadProperties().getStorageProperties().getFragmentPath();
         boolean fileExists = Files.exists(Paths.get(fragmentPath));
         assertTrue(fileExists, "File was not found on the system");
     }
@@ -38,8 +37,8 @@ class SecurityControllerTest {
     @Order(2)
     @DisplayName("Load fragment")
     void loadFragment() throws IOException {
-        String storagePath = "test-data/frag.data";
-        VaultFragment fragment = SecurityController.getInstance().loadFragment(storagePath);
+        String fragmentPath = PropertiesContainer.loadProperties().getStorageProperties().getFragmentPath();
+        VaultFragment fragment = SecurityController.getInstance().loadFragment(fragmentPath);
         assertNotNull(fragment, "Fragment was not loaded");
     }
 
@@ -53,12 +52,6 @@ class SecurityControllerTest {
     @DisplayName("Get random generator")
     void getRandomGenerator() {
         assertNotNull(SecurityController.getInstance().getRandomGenerator(), "Random generator is null");
-    }
-
-    @Test
-    @DisplayName("Get hash function")
-    void getHashFunction() {
-        assertNotNull(SecurityController.getInstance().getHashFunction(), "Hash function is null");
     }
 
     @Test

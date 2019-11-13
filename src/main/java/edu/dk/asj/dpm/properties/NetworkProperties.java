@@ -86,10 +86,10 @@ public class NetworkProperties implements Serializable {
 
             return (NetworkProperties) objectStream.readObject();
         } catch (IOException e) {
-            LOGGER.warn("Could not read net properties", e);
+            LOGGER.debug("Could not read net properties", e);
             return null;
         } catch (ClassNotFoundException e) {
-            LOGGER.error("Net properties data was corrupted", e);
+            LOGGER.debug("Net properties data was corrupted", e);
             return null;
         }
     }
@@ -113,12 +113,7 @@ public class NetworkProperties implements Serializable {
             throw new IllegalArgumentException("Storage path must not be null or blank");
         }
 
-        MessageDigest hashFunction = SecurityController.getInstance().getHashFunction();
-        hashFunction.update(masterPassword.getBytes(StandardCharsets.UTF_8));
-        byte[] pwHash = hashFunction.digest();
-        hashFunction.update(pwHash);
-        hashFunction.update(networkIdSeed.getBytes(StandardCharsets.UTF_8));
-        BigInteger networkId = new BigInteger(hashFunction.digest());
+        BigInteger networkId = SecurityController.getInstance().computeNetworkId(masterPassword, networkIdSeed);
 
         UUID nodeId = UUID.randomUUID();
         NetworkProperties properties = new NetworkProperties(nodeId, networkId, networkIdSeed);

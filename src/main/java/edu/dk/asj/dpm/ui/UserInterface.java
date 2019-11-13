@@ -123,7 +123,7 @@ public class UserInterface {
             String newSeedMessage = null;
             if (firstConfig) {
                 networkIdSeed = Long.toString(System.currentTimeMillis(), 16);
-                newSeedMessage = "Your network seed is " + networkIdSeed + ". Make sure to save this for future configuration of other devices";
+                newSeedMessage = "\nRemember/write down your network seed:\t\t" + networkIdSeed;
             } else {
                 String seedPrompt = "Input Network Seed (shown at first device configuration): ";
                 networkIdSeed = textUI.newStringInputReader().read(seedPrompt);
@@ -147,7 +147,7 @@ public class UserInterface {
     }
 
     private static void initialiseFragment() {
-        String errorMessage = "Encountered a network error while initialising the vault";
+        String networkError = "Encountered a network error while initialising the vault";
 
         try {
             // Get existing fragments from the network to construct existing vault, or initialize empty if no fragments
@@ -172,11 +172,11 @@ public class UserInterface {
             if (nodeCount > 1) {
                 VaultFragment[] newNetworkFragments = Arrays.copyOfRange(newFragments, 1, newFragments.length);
                 if (!network.sendNetworkFragments(newNetworkFragments)) {
-                    fatal(errorMessage);
+                    fatal(networkError);
                 }
             }
         } catch (IOException | ClassNotFoundException e) {
-            fatal(errorMessage);
+            fatal(networkError);
         }
     }
 

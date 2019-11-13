@@ -12,6 +12,7 @@ import java.io.InputStream;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.OutputStream;
+import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -35,7 +36,8 @@ public class SecurityController {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(SecurityController.class);
     private static final String RANDOM_GENERATOR_SCHEME = "DRBG";
-    private static final String HASH_SCHEME = "SHA3-512";
+    private static final String HASH_SCHEME_LONG = "SHA3-512";
+    private static final String HASH_SCHEME_SHORT = "SHA3-256";
 
     private static SecurityController instance;
 
@@ -52,7 +54,15 @@ public class SecurityController {
         }
 
         try {
-            MessageDigest.getInstance(HASH_SCHEME, "BC");
+            MessageDigest.getInstance(HASH_SCHEME_LONG, "BC");
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("Invalid hash algorithm ["+e.getLocalizedMessage()+"]");
+        } catch (NoSuchProviderException e) {
+            throw new IllegalStateException("Invalid hash algorithm provider ["+e.getLocalizedMessage()+"]");
+        }
+
+        try {
+            MessageDigest.getInstance(HASH_SCHEME_SHORT, "BC");
         } catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException("Invalid hash algorithm ["+e.getLocalizedMessage()+"]");
         } catch (NoSuchProviderException e) {
@@ -84,20 +94,6 @@ public class SecurityController {
     }
 
     /**
-     * Retrieve a new instance of the scheme's hash function.
-     * @return a {@link MessageDigest} object encapsulating the hash function.
-     */
-    public MessageDigest getHashFunction() {
-        try {
-            return MessageDigest.getInstance(HASH_SCHEME, "BC");
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("Invalid hash algorithm ["+e.getLocalizedMessage()+"]");
-        } catch (NoSuchProviderException e) {
-            throw new IllegalStateException("Invalid hash algorithm provider ["+e.getLocalizedMessage()+"]");
-        }
-    }
-
-    /**
      * Check if a user's input master password is equal to the stored MP hash.
      * @param inputMp the user's master password input. It must not have been processed with any hashing prior to use
      *                in this method.
@@ -108,7 +104,7 @@ public class SecurityController {
         if (mpHash == null || inputMp == null || inputMp.isBlank()) {
             return false;
         }
-        byte[] inputHash = hash(inputMp);
+        byte[] inputHash = longHash(inputMp);
         return Arrays.equals(mpHash, inputHash);
     }
 
@@ -118,7 +114,23 @@ public class SecurityController {
      *                to use in this method.
      */
     public void setMasterPassword(String inputMp) {
-        this.mpHash = hash(inputMp);
+        this.mpHash = longHash(inputMp);
+    }
+
+    /**
+     * Compute the unique network ID using the user's master password and network ID seed.
+     * @param password the user's master password (in plaintext).
+     * @param seed a seed for the network ID generation.
+     * @return the generated network ID.
+     */
+    public BigInteger computeNetworkId(String password, String seed) {
+        Objects.requireNonNull(password, "Master password must not be null");
+        Objects.requireNonNull(seed, "Network ID seed must not be null");
+
+        MessageDigest hashFunction = getShortHashFunction();
+        hashFunction.update(longHash(password));
+        hashFunction.update(seed.getBytes(StandardCharsets.UTF_8));
+        return new BigInteger(hashFunction.digest());
     }
 
     /**
@@ -178,8 +190,28 @@ public class SecurityController {
         }
     }
 
-    private byte[] hash(String s) {
-        Objects.requireNonNull(s);
-        return getHashFunction().digest(s.getBytes(StandardCharsets.UTF_8));
+    private MessageDigest getLongHashFunction() {
+        try {
+            return MessageDigest.getInstance(HASH_SCHEME_LONG, "BC");
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("Invalid hash algorithm ["+e.getLocalizedMessage()+"]");
+        } catch (NoSuchProviderException e) {
+            throw new IllegalStateException("Invalid hash algorithm provider ["+e.getLocalizedMessage()+"]");
+        }
     }
+
+    private MessageDigest getShortHashFunction() {
+        try {
+            return MessageDigest.getInstance(HASH_SCHEME_SHORT, "BC");
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("Invalid hash algorithm ["+e.getLocalizedMessage()+"]");
+        } catch (NoSuchProviderException e) {
+            throw new IllegalStateException("Invalid hash algorithm provider ["+e.getLocalizedMessage()+"]");
+        }
+    }
+
+    private byte[] longHash(String s) {
+        return getLongHashFunction().digest(s.getBytes(StandardCharsets.UTF_8));
+    }
+
 }
