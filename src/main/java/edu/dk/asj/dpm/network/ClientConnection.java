@@ -29,42 +29,45 @@ public class ClientConnection extends Thread implements AutoCloseable {
 
     private Packet response;
     private String error;
+    private boolean requireResponse;
 
 
-    private ClientConnection(SocketAddress destination, Packet request) {
+    private ClientConnection(SocketAddress destination, Packet request, boolean requireResponse) {
         super("connection-" + destination.toString());
         this.destination = destination;
         this.request = request;
+        this.requireResponse = requireResponse;
     }
 
     /**
      * Prepare a client connection in a separate thread and start the thread, which opens the connection.
      * @param request the packet that the connection should send.
      * @param destination the destination to which the packet should be sent.
+     * @param requireResponse flag indicating whether the connection must wait for a response.
      * @return the initialized and started connection.
      */
-    public static ClientConnection send(Packet request, SocketAddress destination) {
+    public static ClientConnection send(Packet request, SocketAddress destination, boolean requireResponse) {
         Objects.requireNonNull(destination, "Destination must not be null");
         Objects.requireNonNull(request, "Request must not be null");
 
-        ClientConnection connection = new ClientConnection(destination, request);
+        ClientConnection connection = new ClientConnection(destination, request, requireResponse);
         connection.start();
-        LOGGER.info("Started client connection");
+        LOGGER.info("Started client connection with send");
         return connection;
     }
 
     /**
      * Construct a client connection in a separate thread. This thread is not yet started. In order to start the thread
-     * you must first set the connection's request using {@link ClientConnection#setRequest(Packet)} and then start the
-     * connection using {@link ClientConnection#start()}.
+     * you must first set the connection's request using {@link ClientConnection#setRequest(Packet,boolean)} and then
+     * start the connection using {@link ClientConnection#start()}.
      * @param destination the destination of the connection.
      * @return the initialized (but not started) connection.
      */
     public static ClientConnection prepare(SocketAddress destination) {
         Objects.requireNonNull(destination, "Destination must not be null");
 
-        ClientConnection connection = new ClientConnection(destination, null);
-        LOGGER.info("Started client connection");
+        ClientConnection connection = new ClientConnection(destination, null, true);
+        LOGGER.info("Started client connection with prepare");
         return connection;
     }
 
@@ -80,10 +83,12 @@ public class ClientConnection extends Thread implements AutoCloseable {
      * Set the request to be sent with the connection. This method should only be used on a connection that was
      * initialized using {@link ClientConnection#prepare(SocketAddress)}.
      * @param request the request packet to be sent to the connection destination.
+     * @param requireResponse flag for whether the connection should wait for a response to the request.
      */
-    public void setRequest(Packet request) {
+    public void setRequest(Packet request, boolean requireResponse) {
         Objects.requireNonNull(request);
         this.request = request;
+        this.requireResponse = requireResponse;
     }
 
     /**
@@ -100,6 +105,14 @@ public class ClientConnection extends Thread implements AutoCloseable {
      */
     public String getError() {
         return error;
+    }
+
+    /**
+     * Determine if the connection has finished its flow.
+     * @return true if the connection flow has finished; false otherwise.
+     */
+    public boolean isFinished() {
+        return isAlive();
     }
 
     /**
@@ -121,7 +134,9 @@ public class ClientConnection extends Thread implements AutoCloseable {
             return;
         }
 
-        receiveResponse();
+        if (requireResponse) {
+            receiveResponse();
+        }
         cleanUp();
     }
 

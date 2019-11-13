@@ -19,9 +19,11 @@ import java.net.SocketAddress;
 import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
+import java.util.Objects;
 
 public class NetworkController implements DiscoveryHandler, PacketHandler {
     private static final Logger LOGGER = LoggerFactory.getLogger(NetworkController.class);
+    private static final long WAIT_CONNECTION_MS = 10;
 
     private DiscoveryListener discoveryListener;
     private final PropertiesContainer propertiesContainer;
@@ -30,13 +32,14 @@ public class NetworkController implements DiscoveryHandler, PacketHandler {
     public NetworkController(NetworkProperties properties, PropertiesContainer propertiesContainer) {
         networkId = properties.getNetworkId();
         this.propertiesContainer = propertiesContainer;
+        discoveryListener = DiscoveryListener.open(this, networkId);
     }
 
     /**
      * Start the network discovery listener, waiting for discovery requests from the network.
      */
     public void startDiscoveryListener() {
-        discoveryListener = DiscoveryListener.start(this, networkId);
+        discoveryListener.startListening();
     }
 
     /**
@@ -51,7 +54,7 @@ public class NetworkController implements DiscoveryHandler, PacketHandler {
         }
 
         connections.forEach(connection -> {
-            connection.setRequest(new GetFragmentPacket(networkId));
+            connection.setRequest(new GetFragmentPacket(networkId), true);
             connection.start();
         });
 
@@ -59,22 +62,25 @@ public class NetworkController implements DiscoveryHandler, PacketHandler {
         boolean hasError = false;
         while (!connections.isEmpty()) {
             ClientConnection peek = connections.peek();
-            if (peek.getResponse() != null) {
+            if (peek.isFinished()) {
                 ClientConnection connection = connections.poll();
-                if (connection.getResponse() instanceof FragmentPacket) {
-                    fragments.add(((FragmentPacket) connection.getResponse()).getFragment());
-                } else {
-                    LOGGER.warn("Unexpected reply to network fragment request. Expected {} but was {}", FragmentPacket.class, connection.getClass());
-                    hasError = true;
-                }
+                if (connection.getResponse() != null) {
+                    if (connection.getResponse() instanceof FragmentPacket) {
+                        fragments.add(((FragmentPacket) connection.getResponse()).getFragment());
+                    } else {
+                        LOGGER.warn("Unexpected reply to network fragment request. Expected {} but was {}", FragmentPacket.class, connection.getClass());
+                        hasError = true;
+                    }
 
-            } else if (peek.getError() != null) {
-                LOGGER.warn("Fragment request error: {}", peek.getError());
-                hasError = true;
+                } else if (connection.getError() != null) {
+                    LOGGER.warn("Fragment request error: {}", peek.getError());
+                    hasError = true;
+                } else {
+                    LOGGER.debug("Connection {} finished with no response or error", connection.getName());
+                }
             } else {
-                // connection not yet finished/ready
                 try {
-                    Thread.sleep(10);
+                    Thread.sleep(WAIT_CONNECTION_MS);
                 } catch (InterruptedException e) {
                     // do nothing
                 }
@@ -91,9 +97,52 @@ public class NetworkController implements DiscoveryHandler, PacketHandler {
     /**
      * Send the new fragments to the node network.
      * @param fragments the new fragments.
+     * @return true if the fragments were sent, false otherwise.
      */
-    public void sendNetworkFragments(VaultFragment[] fragments) {
-        // TODO implement
+    public boolean sendNetworkFragments(VaultFragment[] fragments) throws IOException {
+        Objects.requireNonNull(fragments, "Fragments must not be null");
+
+        Deque<ClientConnection> connections = discoveryListener.getNetworkConnections();
+        if (connections.isEmpty()) {
+            LOGGER.warn("No network connections to send new fragments to");
+            return false;
+        }
+        if (connections.size() != fragments.length) {
+            LOGGER.warn("Cannot send {} fragments to {} nodes", fragments.length, connections.size());
+            return false;
+        }
+
+        int i = 0;
+        for (ClientConnection connection : connections) {
+            connection.setRequest(new FragmentPacket(fragments[i++]), false);
+            connection.start();
+        }
+
+        while (!connections.isEmpty()) {
+            ClientConnection connection = getFinishedConnection(connections);
+            if (connection.getError() != null) {
+                LOGGER.warn("Send network fragments error: {}", connection.getError());
+                connections.forEach(ClientConnection::close);
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private ClientConnection getFinishedConnection(Deque<ClientConnection> connections) {
+        if (connections.isEmpty()) {
+            return null;
+        }
+
+        ClientConnection peek = connections.peek();
+        while (!peek.isFinished()) {
+            try {
+                Thread.sleep(WAIT_CONNECTION_MS);
+            } catch (InterruptedException e) {
+                // do nothing
+            }
+        }
+        return connections.poll();
     }
 
     @Override

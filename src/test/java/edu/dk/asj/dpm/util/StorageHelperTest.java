@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -14,10 +15,12 @@ class StorageHelperTest {
     @Test
     @DisplayName("Create and get path")
     void getPath() throws IOException {
-        Path path = StorageHelper.getOrCreateStoragePath("unit-test/path");
+        String storagePath = "unit-test/path";
+        Path path = StorageHelper.getOrCreateStoragePath(storagePath);
         assertNotNull(path, "Path is null");
 
         // clean-up
         Files.delete(path);
+        Files.delete(Paths.get(storagePath.split("/")[0]));
     }
 }

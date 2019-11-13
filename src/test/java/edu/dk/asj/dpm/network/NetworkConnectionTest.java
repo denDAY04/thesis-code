@@ -31,7 +31,7 @@ class NetworkConnectionTest {
         testClientRequest = new DiscoveryPacket(BigInteger.ONE);
 
         ServerConnection server = ServerConnection.open(handler);
-        ClientConnection client = ClientConnection.send(testClientRequest, new InetSocketAddress("localhost", server.getPort()));
+        ClientConnection client = ClientConnection.send(testClientRequest, new InetSocketAddress("localhost", server.getPort()), true);
 
         server.join();
         client.join();

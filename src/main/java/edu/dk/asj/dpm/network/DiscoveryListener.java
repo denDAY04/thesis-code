@@ -26,30 +26,34 @@ public class DiscoveryListener extends Thread implements AutoCloseable {
     private static final Logger LOGGER = LoggerFactory.getLogger(DiscoveryListener.class);
     private static final int BUFFER_CAPACITY = 1000;
     private static final long DISCOVERY_TIMEOUT_MS = 1000 * 1;
-
-    static final String PEER_GROUP_ADDRESS = "232.0.0.0";
-    static final int PEER_GROUP_PORT = 35587;
+    private static final long IDLE_SLEEP_MS = 50;
+    private static final String PEER_GROUP_ADDRESS = "232.0.0.0";
+    private static final int PEER_GROUP_PORT = 35587;
 
     private DatagramChannel channel;
     private final DiscoveryHandler packetHandler;
     private final BigInteger networkId;
     private final ByteBuffer discoveryBuffer;
+    private boolean isListening;
 
     private DiscoveryListener(DiscoveryHandler packetHandler, BigInteger networkId) {
         super("discovery-listener");
         this.packetHandler = packetHandler;
         this.networkId = networkId;
-         discoveryBuffer = ByteBuffer.allocate(BUFFER_CAPACITY);
+        discoveryBuffer = ByteBuffer.allocate(BUFFER_CAPACITY);
+        isListening = false;
     }
 
     /**
-     * Construct and start a node discovery listener.
+     * Construct and start a node discovery listener. The started listener is available for sending requests to the
+     * network, but it will not listen for discovery requests before {@link DiscoveryListener#startListening()} is
+     * called.
      * @param handler the object that should handle discovery requests.
      * @param networkId the ID of this node's network. The listener will filter out discovery requests that are not
      *                  addressed to this network ID.
      * @return the listener.
      */
-    public static DiscoveryListener start(DiscoveryHandler handler, BigInteger networkId) {
+    public static DiscoveryListener open(DiscoveryHandler handler, BigInteger networkId) {
         Objects.requireNonNull(handler, "Handler may not be null");
         Objects.requireNonNull(networkId, "Network ID must not be null");
 
@@ -68,12 +72,13 @@ public class DiscoveryListener extends Thread implements AutoCloseable {
             return;
         }
 
-        LOGGER.debug("Listening for discovery requests");
-        boolean threwError;
+        boolean threwError = false;
         do {
-            threwError = listenForDiscoveries();
+            if (isListening) {
+                threwError = listenForDiscoveries();
+            }
             try {
-                sleep(50);
+                sleep(IDLE_SLEEP_MS);
             } catch (InterruptedException e) {
                 // do nothing
             }
@@ -112,13 +117,21 @@ public class DiscoveryListener extends Thread implements AutoCloseable {
                 }
             } else {
                 try {
-                    sleep(50);
+                    sleep(IDLE_SLEEP_MS);
                 } catch (InterruptedException e) {
                     // do nothing
                 }
             }
         }
         return connections;
+    }
+
+    /**
+     * Enable the broadcast connection to listen for discovery requests from the network.
+     */
+    public synchronized void startListening() {
+        LOGGER.debug("Started listening for discovery requests");
+        isListening = true;
     }
 
     @Override
