@@ -26,8 +26,11 @@ public class UserInterface {
 
     public static void main(String[] args) {
         textUI = TextIoFactory.getTextIO();
+
         loadProperties();
         configureApplication();
+
+        message("\n-- Welcome --\n");
 
         // TODO rest of activities incl. sign-in
     }
@@ -75,7 +78,7 @@ public class UserInterface {
      */
     public static void message(String message) {
         if (textUI != null) {
-            LOGGER.info(message);
+            LOGGER.debug(message);
             textUI.getTextTerminal().println(message);
         } else {
             System.out.println(message);
