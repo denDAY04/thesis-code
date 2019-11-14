@@ -7,7 +7,7 @@ import java.util.Objects;
 /**
  * Packet for discovering nodes in the node network for a given network ID.
  */
-public class DiscoveryPacket extends Packet implements Serializable {
+public class DiscoveryPacket extends Packet {
     private static final long serialVersionUID = 8787602385844921665L;
 
     private final BigInteger networkId;

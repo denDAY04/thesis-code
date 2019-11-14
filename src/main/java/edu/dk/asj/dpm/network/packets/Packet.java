@@ -44,7 +44,7 @@ public abstract class Packet implements Serializable {
             objectStream.writeObject(this);
             return byteStream.toByteArray();
         } catch (IOException e) {
-            throw new RuntimeException("Could not serialize request ["+e.getLocalizedMessage()+"]");
+            throw new RuntimeException("Could not serialize request", e);
         }
     }
 

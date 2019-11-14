@@ -63,6 +63,8 @@ public class ServerConnection extends Thread implements AutoCloseable {
             return;
         }
 
+        // TODO authenticate connection
+
         Packet request = receiveRequest();
         if (request == null) {
             cleanUp();;

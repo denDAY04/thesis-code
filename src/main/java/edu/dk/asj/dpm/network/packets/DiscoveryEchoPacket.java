@@ -7,7 +7,7 @@ import java.util.Objects;
  * Packet for echoing a response to a {@link DiscoveryPacket}. This response includes the port number on which the
  * sender of the discovery request should initiate a session connection.
  */
-public class DiscoveryEchoPacket extends Packet implements Serializable {
+public class DiscoveryEchoPacket extends Packet {
     private static final long serialVersionUID = 8379654888314823172L;
 
     private final int connectionPort;

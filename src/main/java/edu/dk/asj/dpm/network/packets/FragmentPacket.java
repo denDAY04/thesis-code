@@ -7,7 +7,7 @@ import java.util.Objects;
 /**
  * Request containing a vault fragment.
  */
-public class FragmentPacket extends Packet implements Serializable {
+public class FragmentPacket extends Packet {
     private static final long serialVersionUID = -5156371335990354618L;
 
     private VaultFragment fragment;
