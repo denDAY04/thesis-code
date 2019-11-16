@@ -21,7 +21,7 @@ import java.util.Deque;
 import java.util.List;
 import java.util.Objects;
 
-public class NetworkController implements DiscoveryHandler, PacketHandler {
+public class NetworkController implements DiscoveryHandler, PacketHandler, AutoCloseable {
     private static final Logger LOGGER = LoggerFactory.getLogger(NetworkController.class);
     private static final long WAIT_CONNECTION_MS = 10;
 
@@ -146,6 +146,12 @@ public class NetworkController implements DiscoveryHandler, PacketHandler {
     }
 
     @Override
+    public void close() {
+        LOGGER.info("Closing network resources");
+        discoveryListener.close();
+    }
+
+    @Override
     public DiscoveryEchoPacket process(DiscoveryPacket packet, SocketAddress sender) {
         ServerConnection connection = ServerConnection.open(this);
         return new DiscoveryEchoPacket(connection.getPort());
@@ -174,6 +180,7 @@ public class NetworkController implements DiscoveryHandler, PacketHandler {
 
     @Override
     public void error(String error) {
-        UserInterface.error("Network error: " + error);
+        LOGGER.error("Network error: {}", error);
+        throw new RuntimeException("Network controller received a critical error. Please check the application log");
     }
 }

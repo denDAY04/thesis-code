@@ -95,16 +95,16 @@ public class SecurityController {
 
     /**
      * Check if a user's input master password is equal to the stored MP hash.
-     * @param inputMp the user's master password input. It must not have been processed with any hashing prior to use
+     * @param pwd the user's master password input. It must not have been processed with any hashing prior to use
      *                in this method.
      * @return true if the input is equal to the stored master password verification hash, after processing the user
      * input.
      */
-    public boolean isMasterPassword(String inputMp) {
-        if (mpHash == null || inputMp == null || inputMp.isBlank()) {
+    public boolean isMasterPassword(String pwd) {
+        if (mpHash == null || pwd == null || pwd.isBlank()) {
             return false;
         }
-        byte[] inputHash = longHash(inputMp);
+        byte[] inputHash = longHash(pwd);
         return Arrays.equals(mpHash, inputHash);
     }
 
