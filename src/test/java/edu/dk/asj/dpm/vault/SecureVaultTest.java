@@ -8,10 +8,14 @@ import org.junit.jupiter.api.Test;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.ObjectOutputStream;
-import java.util.Iterator;
-import java.util.Set;
+import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 class SecureVaultTest {
@@ -43,12 +47,11 @@ class SecureVaultTest {
         vault.add(new VaultEntry("fooBar", "baz"));
         vault.add(new VaultEntry("Alice", "Bob"));
 
-        Set<VaultEntry> result = vault.search("Foo");
+        List<VaultEntry> result = vault.search("Foo");
         assertEquals(2, result.size(), "Unexpected search result size");
 
-        Iterator<VaultEntry> resultIter = result.iterator();
-        assertEquals("foo", resultIter.next().getName(), "Non-matching entry names");
-        assertEquals("fooBar", resultIter.next().getName(), "Non-matching entry names");
+        assertEquals("foo", result.get(0).getName(), "Non-matching entry names");
+        assertEquals("fooBar", result.get(1).getName(), "Non-matching entry names");
     }
 
     @Test
@@ -60,7 +63,7 @@ class SecureVaultTest {
         vault.add(new VaultEntry("foo", "bar"));
         vault.add(new VaultEntry("fooBar", "baz"));
 
-        Set<VaultEntry> entries = vault.getAll();
+        List<VaultEntry> entries = vault.getAll();
         assertEquals(2, entries.size(), "Unexpected result size");
     }
 

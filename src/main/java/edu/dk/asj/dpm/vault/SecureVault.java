@@ -11,7 +11,9 @@ import java.io.ObjectOutputStream;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.security.SecureRandom;
+import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
@@ -38,20 +40,21 @@ public class SecureVault implements Serializable {
      * complete strings and sub-strings.
      * @param nameQuery query to filter on. Results include entries whose name contains the complete character sequence,
      *                  either in full or as a sub-string of the entry's name.
-     * @return the result set, with results or empty.
+     * @return the result as an index-enabled list. May be empty.
      */
-    public Set<VaultEntry> search(String nameQuery) {
-        return entries.stream()
+    public List<VaultEntry> search(String nameQuery) {
+        Set<VaultEntry> resultSet = entries.stream()
                 .filter(e -> e.getName().toLowerCase().contains(nameQuery.toLowerCase()))
                 .collect(Collectors.toCollection(() -> new TreeSet<>(new VaultEntryNameComparator())));
+        return asList(resultSet);
     }
 
     /**
-     * Get all entries in the vault.
+     * Get all entries in the vault, as an index-enabled list.
      * @return all the entries.
      */
-    public Set<VaultEntry> getAll() {
-        return entries;
+    public List<VaultEntry> getAll() {
+        return asList(entries);
     }
 
     /**
@@ -117,6 +120,13 @@ public class SecureVault implements Serializable {
         return new Builder();
     }
 
+    private ArrayList<VaultEntry> asList(Set<VaultEntry> entries) {
+        ArrayList<VaultEntry> list = new ArrayList<>();
+        if (entries != null) {
+            list.addAll(entries);
+        }
+        return list;
+    }
 
 
     /**

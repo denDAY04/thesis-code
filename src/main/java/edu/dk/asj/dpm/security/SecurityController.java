@@ -150,6 +150,8 @@ public class SecurityController {
      * @return the loaded fragment, or null.
      */
     public VaultFragment loadFragment(String storagePath) {
+        LOGGER.debug("Loading local fragment");
+
         StandardOpenOption[] fileOptions = new StandardOpenOption[] { READ };
         try (InputStream fileStream = Files.newInputStream(Paths.get(storagePath), fileOptions);
              ObjectInputStream objectStream = new ObjectInputStream(fileStream)) {
@@ -173,6 +175,8 @@ public class SecurityController {
      * @return true if the save succeeded, false otherwise.
      */
     public boolean saveFragment(VaultFragment fragment, String storagePath) {
+        LOGGER.debug("Saving local fragment");
+
         StandardOpenOption[] fileOptions = new StandardOpenOption[] { WRITE, TRUNCATE_EXISTING };
         try (OutputStream fileStream = Files.newOutputStream(StorageHelper.getOrCreateStoragePath(storagePath), fileOptions);
              ObjectOutputStream objectWriter = new ObjectOutputStream(fileStream)) {

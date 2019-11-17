@@ -1,31 +1,67 @@
 package edu.dk.asj.dpm.ui;
 
 import edu.dk.asj.dpm.Application;
-import edu.dk.asj.dpm.security.SecurityController;
+import edu.dk.asj.dpm.ui.actions.EmptyVaultAction;
+import edu.dk.asj.dpm.ui.actions.MenuAction;
+import edu.dk.asj.dpm.ui.actions.SignInAction;
+import edu.dk.asj.dpm.ui.actions.VaultAction;
+import edu.dk.asj.dpm.vault.VaultEntry;
 import org.beryx.textio.TextIO;
 import org.beryx.textio.TextIoFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.List;
 import java.util.Objects;
 
 public class UserInterface {
     private static final Logger LOGGER = LoggerFactory.getLogger(UserInterface.class);
+    private static final String BLANK_SCREEN = "clean-bookmark";
 
     private TextIO textUI;
     private Application application;
+    private boolean signedIn;
 
     public UserInterface(Application application) {
         Objects.requireNonNull(application);
 
         this.application = application;
         textUI = TextIoFactory.getTextIO();
+        signedIn = false;
+
+        message("\n===================================="
+                + "\n    Distributed Password Manager    "
+                + "\n====================================");
+        textUI.getTextTerminal().setBookmark(BLANK_SCREEN);
     }
 
+    @SuppressWarnings("InfiniteLoopStatement")
     public void run() {
-        signIn();
-        MenuAction action = getMenuAction();
-        // TODO continue flow
+        while (true) {
+            if (!signedIn) {
+                signIn();
+            }
+
+            MenuAction action = textUI.newEnumInputReader(MenuAction.class).read();
+            switch (action){
+                case ShowVault:
+                    handleVaultEntries(application.getVault().getAll());
+                    break;
+
+                case SearchVault:
+                    String query = textUI.newStringInputReader().read("Search entry names for:");
+                    handleVaultEntries(application.getVault().search(query));
+                    break;
+
+                case AddVaultEntry:
+                    addVaultEntry();
+                    break;
+
+                case SignOut:
+                    signOut();
+                    break;
+            }
+        }
     }
 
     /**
@@ -71,37 +107,120 @@ public class UserInterface {
      */
     public void message(String message) {
         if (textUI != null) {
-            LOGGER.debug(message);
             textUI.getTextTerminal().println(message);
         } else {
             System.out.println(message);
         }
     }
 
+    /**
+     * Prompt user for their master password.
+     * @param prompt the prompt text to display.
+     * @return the user's input.
+     */
     public String getPassword(String prompt) {
         return textUI.newStringInputReader().withInputMasking(true).read(prompt);
     }
 
+    /**
+     * Prompt the user to flag whether this is the first device being configured in the node network.
+     * @return the user's input.
+     */
     public boolean isFirstDevice() {
         String firstConfigPrompt = "Is this the first device you're configuring for your password manager?";
         return textUI.newBooleanInputReader().withFalseInput("n").withTrueInput("y").read(firstConfigPrompt);
     }
 
+    /**
+     * Prompt the user for the node network's seed.
+     * @return the user's input
+     */
     public String getNetworkSeed() {
         String seedPrompt = "Input Network Seed (shown at first device configuration):";
         return textUI.newStringInputReader().read(seedPrompt);
     }
 
+
+    @SuppressWarnings("SwitchStatementWithTooFewBranches")
+    private void handleVaultEntries(List<VaultEntry> entries) {
+        clearScreen();
+
+        message(":: Vault Entries ::");
+        if (entries == null || entries.isEmpty()){
+            message("No entries found");
+            EmptyVaultAction action = textUI.newEnumInputReader(EmptyVaultAction.class).read();
+            switch (action) {
+                case Back:
+                    clearScreen();
+                    break;
+            }
+        } else {
+            int i = 1;
+            for (VaultEntry entry : entries) {
+                message("[" + (i++) + "] " + entry);
+            }
+
+            VaultAction action = textUI.newEnumInputReader(VaultAction.class).read();
+            switch (action) {
+                case Delete:
+                    Integer selection = textUI
+                            .newIntInputReader()
+                            .withMinVal(0)
+                            .withMaxVal(entries.size())
+                            .read("Delete entry number ([0] to abort and go back):");
+
+                    clearScreen();
+                    if (selection == 0) {
+                        return;
+                    }
+                    boolean removed = application.getVault().remove(entries.get(selection - 1));
+                    if (!removed) {
+                        error("Could not delete entry");
+                    } else {
+                        application.notifyVaultChange();
+                        message("Entry deleted");
+                    }
+                    break;
+
+                case Back:
+                    clearScreen();
+                    break;
+            }
+        }
+    }
+
+    private void addVaultEntry() {
+        clearScreen();
+        message("Adding new entry ([x] to abort and go back)");
+
+        String name = textUI.newStringInputReader().read("New entry name:");
+        if (name.equals("x")) {
+            clearScreen();
+            return;
+        }
+        String pwd = textUI.newStringInputReader().read("New entry password:");
+        if (pwd.equals("x")) {
+            clearScreen();
+            return;
+        }
+
+        clearScreen();
+        boolean added = application.getVault().add(new VaultEntry(name, pwd));
+        if (!added) {
+            error("Could not add new entry to vault");
+        } else {
+            application.notifyVaultChange();
+            message("Entry added");
+        }
+    }
+
     private void signIn() {
-        message(":: Actions ::" + "\n[1] Sign in" + "\n[x] Exit program");
+        clearScreen();
 
         boolean authenticated;
         do {
-            Character input = textUI.newCharInputReader()
-                    .withPossibleValues('1', 'x')
-                    .read();
-
-            if (input == 'x') {
+            SignInAction action = textUI.newEnumInputReader(SignInAction.class).read();
+            if (action == SignInAction.Exit) {
                 application.exit();
             }
 
@@ -118,24 +237,19 @@ public class UserInterface {
             }
         } while (!authenticated);
 
-        message("===============" + "\n    WELCOME    " + "\n===============");
-    }
+        signedIn = true;
+        application.constructVault();
 
-    private MenuAction getMenuAction() {
-        String msg = ":: Menu ::" +
-                "\n[1] Show vault" +
-                "\n[2] Search vault" +
-                "\n[3] Add entry into vault" +
-                "\n[4] Sign out" +
-                "\n[x] Exit";
-        message(msg);
-
-        Character action = textUI.newCharInputReader().withPossibleValues(MenuAction.getInputValues()).read();
-        return MenuAction.parse(action);
+        clearScreen();
     }
 
     private void signOut() {
-        SecurityController.getInstance().clearMasterPassword();
+        signedIn = false;
+        application.clearVault();
         message("Signed out");
+    }
+
+    private void clearScreen() {
+        textUI.getTextTerminal().resetToBookmark(BLANK_SCREEN);
     }
 }

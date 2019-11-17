@@ -63,7 +63,7 @@ public class DiscoveryListener extends Thread implements AutoCloseable {
 
         DiscoveryListener listener = new DiscoveryListener(handler, networkId);
         listener.start();
-        LOGGER.info("Started node discovery listener for network ID {}", networkId);
+        LOGGER.debug("Started node discovery listener for network ID {}", networkId);
         return listener;
     }
 

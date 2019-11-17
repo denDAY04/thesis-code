@@ -12,6 +12,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collection;
 
 public class Application {
     private static final Logger LOGGER = LoggerFactory.getLogger(Application.class);
@@ -29,10 +30,13 @@ public class Application {
     }
 
     public static void main(String[] args) {
+        LOGGER.info("Starting application");
+
         Application application = new Application();
         application.loadProperties();
         application.configure();
 
+        LOGGER.info("Application running");
         application.ui.run();
     }
 
@@ -61,7 +65,56 @@ public class Application {
      */
     public void exit() {
         networkController.close();
+        LOGGER.info("Exiting application");
         System.exit(0);
+    }
+
+    public void constructVault() {
+        VaultFragment localFragment = securityController.loadFragment(propertiesContainer.getStorageProperties().getFragmentPath());
+        try {
+            Collection<VaultFragment> networkFragments = networkController.getNetworkFragments();
+            SecureVault.Builder builder = SecureVault.builder();
+            builder.addFragment(localFragment);
+            networkFragments.forEach(builder::addFragment);
+            vault = builder.build();
+        } catch (IOException | ClassNotFoundException e) {
+            LOGGER.error("Fetch vault fragments exception", e);
+            ui.fatal("Encountered an error while retrieving the vault from node network");
+        }
+
+    }
+
+    public void clearVault() {
+        vault = null;
+    }
+
+    /**
+     * Notify the network of changes to the vault. This means
+     * <ol>
+     *     <li>Fragment the new vault</li>
+     *     <li>Save a local fragment</li>
+     *     <li>Send rest of fragments to node network</li>
+     * </ol>
+     */
+    public void notifyVaultChange() {
+        int networkSize = networkController.getNetworkSize();
+        String networkError = "Encountered a network error while notifying network of vault change";
+
+        try {
+            VaultFragment[] fragments = vault.fragment(networkSize);
+            boolean saved = securityController.saveFragment(fragments[0], propertiesContainer.getStorageProperties().getFragmentPath());
+            if (!saved) {
+                ui.fatal("Could not save fragment");
+            }
+            if (networkSize > 1) {
+                if (!networkController.sendNetworkFragments(Arrays.copyOfRange(fragments, 1, fragments.length))) {
+                    ui.fatal(networkError);
+                }
+            }
+        } catch (IOException e) {
+            LOGGER.error("Notify network exception", e);
+            ui.fatal(networkError);
+        }
     }
 
     private void loadProperties() {
@@ -78,10 +131,10 @@ public class Application {
         String path = propertiesContainer.getStorageProperties().getNetworkPropertiesPath();
         networkProperties = NetworkProperties.loadFromStorage(path);
         if (networkProperties != null) {
-            ui.message("Configuration loaded");
-            String pwd = ui.getPassword("Master Password:");
+            String pwd = ui.getPassword("Input master password to start application:");
             securityController.setMasterPassword(pwd);
-
+            networkController = new NetworkController(networkProperties, propertiesContainer);
+            ui.message("Configuration loaded");
         } else {
             ui.error("Configuration not found");
             ui.message("Initiating new configuration");
@@ -103,7 +156,7 @@ public class Application {
             boolean firstConfig = ui.isFirstDevice();
             if (firstConfig) {
                 networkIdSeed = Long.toString(System.currentTimeMillis(), 16);
-                newSeedMessage = "\n\tRemember/write down your network seed:\t\t" + networkIdSeed;
+                newSeedMessage = "Remember/write down your network seed:\t" + networkIdSeed;
             } else {
                 networkIdSeed = ui.getNetworkSeed();
             }
@@ -127,24 +180,23 @@ public class Application {
 
     private void initialiseFragment() {
         String networkError = "Encountered a network error while initialising the vault";
-
+        SecureVault temporaryVault;
         try {
             // Get existing fragments from the network to construct existing vault, or initialize empty if no fragments
-            int nodeCount = 1;
-            VaultFragment[] networkFragments = networkController.getNetworkFragments();
-            if (networkFragments == null || networkFragments.length < 1) {
-                vault = SecureVault.builder().buildEmpty();
+            Collection<VaultFragment> networkFragments = networkController.getNetworkFragments();
+            if (networkFragments.isEmpty()) {
+                temporaryVault = SecureVault.builder().buildEmpty();
             } else {
-                nodeCount = nodeCount + networkFragments.length;
                 SecureVault.Builder builder = SecureVault.builder();
-                Arrays.stream(networkFragments).forEach(builder::addFragment);
-                vault = builder.build();
+                networkFragments.forEach(builder::addFragment);
+                temporaryVault = builder.build();
             }
 
-            VaultFragment[] newFragments = vault.fragment(nodeCount);
+            int nodeCount = networkController.getNetworkSize();
+            VaultFragment[] newFragments = temporaryVault.fragment(nodeCount);
             boolean saved = securityController.saveFragment(newFragments[0], propertiesContainer.getStorageProperties().getFragmentPath());
             if (!saved) {
-                ui.fatal("Could not saved fragment");
+                ui.fatal("Could not save fragment");
             }
 
             // Send new fragments to the network
@@ -155,6 +207,7 @@ public class Application {
                 }
             }
         } catch (IOException | ClassNotFoundException e) {
+            LOGGER.error("Initialize vault fragment exception", e);
             ui.fatal(networkError);
         }
     }
