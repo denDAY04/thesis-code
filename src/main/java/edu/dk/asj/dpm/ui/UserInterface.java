@@ -217,30 +217,32 @@ public class UserInterface {
     private void signIn() {
         clearScreen();
 
-        boolean authenticated;
+        boolean authenticated = false;
         do {
             SignInAction action = textUI.newEnumInputReader(SignInAction.class).read();
-            if (action == SignInAction.Exit) {
-                application.exit();
-            }
+            switch (action) {
 
-            String pwd = getPassword("Master password:");
-            authenticated = application.getSecurityController().isMasterPassword(pwd);
-            if (!authenticated) {
-                error("Incorrect password. Try again.");
-                // Enforce a short timeout on incorrect passwords to discourage automated oracle attacks
-                try {
-                    Thread.sleep(500);
-                } catch (InterruptedException e) {
-                    // do nothing
-                }
+                case SignIn:
+                    String pwd = getPassword("Master password:");
+                    authenticated = application.getSecurityController().isMasterPassword(pwd);
+                    clearScreen();
+                    if (!authenticated) {
+                        error("Incorrect password");
+                        // Enforce a short timeout on incorrect passwords to discourage automated oracle attacks
+                        try {
+                            Thread.sleep(500);
+                        } catch (InterruptedException e) {
+                            // do nothing
+                        }
+                    }
+                    break;
+                case Exit:
+                    application.exit();
+                    return;
             }
         } while (!authenticated);
-
         signedIn = true;
         application.constructVault();
-
-        clearScreen();
     }
 
     private void signOut() {

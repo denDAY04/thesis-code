@@ -11,6 +11,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.Collection;
 
@@ -69,6 +70,9 @@ public class Application {
         System.exit(0);
     }
 
+    /**
+     * Construct the secure vault
+     */
     public void constructVault() {
         VaultFragment localFragment = securityController.loadFragment(propertiesContainer.getStorageProperties().getFragmentPath());
         try {
@@ -84,6 +88,9 @@ public class Application {
 
     }
 
+    /**
+     * Clear the in-game memory storing the vault
+     */
     public void clearVault() {
         vault = null;
     }
@@ -131,10 +138,22 @@ public class Application {
         String path = propertiesContainer.getStorageProperties().getNetworkPropertiesPath();
         networkProperties = NetworkProperties.loadFromStorage(path);
         if (networkProperties != null) {
-            String pwd = ui.getPassword("Input master password to start application:");
+            boolean pwdVerified;
+            String pwd;
+            do {
+                pwd = ui.getPassword("Input master password to start application:");
+
+                BigInteger networkIdVerification = securityController.computeNetworkId(pwd, networkProperties.getNetworkIdSeed());
+                pwdVerified = networkIdVerification.equals(networkProperties.getNetworkId());
+                if (!pwdVerified) {
+                    ui.error("Incorrect password");
+                }
+            } while (!pwdVerified);
+
             securityController.setMasterPassword(pwd);
             networkController = new NetworkController(networkProperties, propertiesContainer);
             ui.message("Configuration loaded");
+
         } else {
             ui.error("Configuration not found");
             ui.message("Initiating new configuration");
