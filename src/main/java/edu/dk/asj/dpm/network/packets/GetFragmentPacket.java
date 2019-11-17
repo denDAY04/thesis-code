@@ -28,4 +28,9 @@ public class GetFragmentPacket extends Packet {
     public int hashCode() {
         return Objects.hash(networkId);
     }
+
+    @Override
+    public String toString() {
+        return "GetFragmentPacket{networkId:"+networkId+"}";
+    }
 }

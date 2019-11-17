@@ -69,4 +69,9 @@ public class SAEParameterPacket extends Packet {
     public int hashCode() {
         return Objects.hash(scalar, elementX, elementY);
     }
+
+    @Override
+    public String toString() {
+        return "SAEParameterPacket{scalar:"+scalar+";elementX:"+elementX+";elementY:"+elementY+"}";
+    }
 }

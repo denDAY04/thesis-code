@@ -40,4 +40,9 @@ public class DiscoveryEchoPacket extends Packet {
     public int hashCode() {
         return Objects.hash(connectionPort);
     }
+
+    @Override
+    public String toString() {
+        return "DiscoveryEchoPacket{connectionPort:"+connectionPort+"}";
+    }
 }

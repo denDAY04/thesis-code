@@ -103,14 +103,15 @@ public class ServerConnection extends Thread implements AutoCloseable {
 
         } catch (InterruptedException e) {
             LOGGER.warn("Interrupted while waiting for request");
+            acceptPromise.cancel(true);
             packetHandler.error("An error occurred while waiting for a server request");
         } catch (ExecutionException e) {
             LOGGER.warn("Unknown exception while waiting for request", e);
+            acceptPromise.cancel(true);
             packetHandler.error("An error occurred while waiting for a server request");
         } catch (TimeoutException e) {
             LOGGER.warn("Timed out while waiting for request");
             acceptPromise.cancel(true);
-            packetHandler.error("No requests to server");
         }
 
         return false;
@@ -128,9 +129,11 @@ public class ServerConnection extends Thread implements AutoCloseable {
 
         } catch (InterruptedException e) {
             LOGGER.warn("Interrupted while receiving request");
+            promise.cancel(true);
             packetHandler.error("An error occurred while receiving a node response");
         } catch (ExecutionException e) {
             LOGGER.warn("Unknown exception during receive", e);
+            promise.cancel(true);
             packetHandler.error("An error occurred while receiving a node response");
         } catch (TimeoutException e) {
             LOGGER.warn("Receive timed out");
@@ -151,9 +154,11 @@ public class ServerConnection extends Thread implements AutoCloseable {
             LOGGER.debug("Response sent");
         } catch (InterruptedException e) {
             LOGGER.warn("Interrupted while sending response");
+            promise.cancel(true);
             packetHandler.error("An error occurred while sending server response");
         } catch (ExecutionException e) {
             LOGGER.warn("Unknown exception while sending response", e);
+            promise.cancel(true);
             packetHandler.error("An error occurred while sending server response");
         } catch (TimeoutException e) {
             LOGGER.warn("Send timed out");
@@ -169,7 +174,6 @@ public class ServerConnection extends Thread implements AutoCloseable {
                 connection.close();
             } catch (IOException e) {
                 LOGGER.error("Failed to clean up connection", e);
-//                packetHandler.error("Clean-up failed for server connection");
             }
         }
 
@@ -178,7 +182,6 @@ public class ServerConnection extends Thread implements AutoCloseable {
                 server.close();
             } catch (IOException e) {
                 LOGGER.error("Failed to clean up server", e);
-//                packetHandler.error("Clean-up failed for server connection");
             }
         }
     }

@@ -104,6 +104,11 @@ public class VaultFragment implements Serializable {
         return result;
     }
 
+    @Override
+    public String toString() {
+        return "VaultFragment{vaultSize:"+vaultSize+";fragment.length:"+fragment.length+";mask.length:"+mask.length+"}";
+    }
+
     /**
      * Builder for constructing a vault fragment through iteratively adding byte data.
      */

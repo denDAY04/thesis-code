@@ -37,4 +37,9 @@ public class IdentityPacket extends Packet {
     public int hashCode() {
         return Objects.hash(nodeId);
     }
+
+    @Override
+    public String toString() {
+        return "IdentityPacket{nodeId:"+nodeId+"}";
+    }
 }

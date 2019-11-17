@@ -40,4 +40,9 @@ public class FragmentPacket extends Packet {
     public int hashCode() {
         return Objects.hash(fragment);
     }
+
+    @Override
+    public String toString() {
+        return "FragmentPacket{"+fragment+"}";
+    }
 }

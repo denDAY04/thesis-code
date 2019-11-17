@@ -10,12 +10,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.math.BigInteger;
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
-import java.net.NetworkInterface;
-import java.net.SocketAddress;
-import java.net.StandardProtocolFamily;
-import java.net.StandardSocketOptions;
+import java.net.*;
 import java.nio.ByteBuffer;
 import java.nio.channels.DatagramChannel;
 import java.util.ArrayDeque;
@@ -25,7 +20,7 @@ import java.util.Objects;
 public class DiscoveryListener extends Thread implements AutoCloseable {
     private static final Logger LOGGER = LoggerFactory.getLogger(DiscoveryListener.class);
     private static final int BUFFER_CAPACITY = 1000;
-    private static final long DISCOVERY_TIMEOUT_MS = 1000 * 1;
+    private static final long DISCOVERY_TIMEOUT_MS = 1000 * 5;
     private static final long IDLE_SLEEP_MS = 50;
     private static final String PEER_GROUP_ADDRESS = "232.0.0.0";
     private static final int PEER_GROUP_PORT = 35587;
@@ -34,6 +29,7 @@ public class DiscoveryListener extends Thread implements AutoCloseable {
     private final DiscoveryHandler packetHandler;
     private final BigInteger networkId;
     private final ByteBuffer discoveryBuffer;
+    private final InetSocketAddress networkSocketAddress;
     private boolean isListening;
 
     private DiscoveryListener(DiscoveryHandler packetHandler, BigInteger networkId) {
@@ -42,9 +38,11 @@ public class DiscoveryListener extends Thread implements AutoCloseable {
         this.networkId = networkId;
         discoveryBuffer = ByteBuffer.allocate(BUFFER_CAPACITY);
         isListening = false;
+        networkSocketAddress = new InetSocketAddress(PEER_GROUP_ADDRESS, PEER_GROUP_PORT);
 
         if (!openConnection()) {
             cleanUp();
+            throw new RuntimeException("Discovery listener encountered an error");
         }
     }
 
@@ -93,9 +91,10 @@ public class DiscoveryListener extends Thread implements AutoCloseable {
         DiscoveryPacket packet = new DiscoveryPacket(networkId);
         ByteBuffer sendBuffer = ByteBuffer.wrap(packet.serialize());
         try {
-            channel.send(sendBuffer, new InetSocketAddress(PEER_GROUP_ADDRESS, PEER_GROUP_PORT));
+            LOGGER.debug("Sending request {} to {}", packet, networkSocketAddress);
+            channel.send(sendBuffer, networkSocketAddress);
         } catch (IOException e) {
-            LOGGER.error("Could not send discovery request", e);
+            LOGGER.error("Could not send request", e);
             throw new IOException("Cloud not discover network - sending request");
         }
 
@@ -103,13 +102,13 @@ public class DiscoveryListener extends Thread implements AutoCloseable {
         Deque<ClientConnection> connections = new ArrayDeque<>();
         ByteBuffer receiveBuffer = ByteBuffer.allocate(BUFFER_CAPACITY);
         long discoveryEndTime = System.currentTimeMillis() + DISCOVERY_TIMEOUT_MS;
-
+        LOGGER.debug("Waiting for responses");
         while (System.currentTimeMillis() < discoveryEndTime) {
             SocketAddress sender = channel.receive(receiveBuffer);
             if (sender != null) {
-                LOGGER.debug("Receiver discovery echo from {}", sendBuffer);
                 Packet response = Packet.deserialize(BufferHelper.readAndClear(receiveBuffer));
                 if (response instanceof DiscoveryEchoPacket) {
+                    LOGGER.debug("Receiver discovery echo from {}", sendBuffer);
                     connections.offer(ClientConnection.prepare(sender));
                 } else {
                     LOGGER.warn("Unexpected discovery reply type {}", response.getClass());
@@ -154,6 +153,11 @@ public class DiscoveryListener extends Thread implements AutoCloseable {
         LOGGER.debug("Opening channel");
         try {
             NetworkInterface nic = NetworkInterfaceHelper.getActiveNetInterface();
+            if (nic == null) {
+                LOGGER.error("Could not determine a valid network interface");
+                return false;
+            }
+
             channel = DatagramChannel.open(StandardProtocolFamily.INET);
             channel.setOption(StandardSocketOptions.SO_REUSEADDR, true)
                     .bind(new InetSocketAddress(PEER_GROUP_PORT))
@@ -165,7 +169,6 @@ public class DiscoveryListener extends Thread implements AutoCloseable {
             return true;
         } catch (IOException e) {
             LOGGER.error("Could not open channel", e);
-            packetHandler.error("Failed to open node discovery listener");
             return false;
         }
     }

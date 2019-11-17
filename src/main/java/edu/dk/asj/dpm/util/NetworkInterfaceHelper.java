@@ -18,7 +18,8 @@ public class NetworkInterfaceHelper {
 
     /**
      * Get the active network interface found on the host system.
-     * @return the active network interface, or null if an error occurred or no active interface could be determined.
+     * @return the active network interface, or null if an error occurred or no active interface could
+     * be determined.
      */
     public static NetworkInterface getActiveNetInterface() {
         try {

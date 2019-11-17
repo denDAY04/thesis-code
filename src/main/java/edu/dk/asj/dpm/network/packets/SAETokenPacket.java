@@ -42,4 +42,9 @@ public class SAETokenPacket extends Packet {
     public int hashCode() {
         return Arrays.hashCode(token);
     }
+
+    @Override
+    public String toString() {
+        return "SAETokenPacket{token.length:"+token.length+"}";
+    }
 }

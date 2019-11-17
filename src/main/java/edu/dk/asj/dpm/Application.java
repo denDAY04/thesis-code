@@ -192,9 +192,8 @@ public class Application {
             if (newSeedMessage != null) {
                 ui.message(newSeedMessage);
             }
-
-            networkController.startDiscoveryListener();
         }
+        networkController.startDiscoveryListener();
     }
 
     private void initialiseFragment() {

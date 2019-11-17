@@ -36,4 +36,9 @@ public class DiscoveryPacket extends Packet {
     public int hashCode() {
         return Objects.hash(networkId);
     }
+
+    @Override
+    public String toString() {
+        return "DiscoveryPacket{networkId:" + networkId + "}";
+    }
 }
