@@ -197,6 +197,7 @@ public class Application {
             ui.message("Configuration complete");
             if (newSeedMessage != null) {
                 ui.message(newSeedMessage);
+                ui.confirmPrompt();
             }
         }
         networkController.startDiscoveryListener();

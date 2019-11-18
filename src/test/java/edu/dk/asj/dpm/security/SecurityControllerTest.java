@@ -19,12 +19,15 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class SecurityControllerTest {
 
+    private static String PASSWORD = "123";
+
     @Test
     @Order(1)
     @DisplayName("Save fragment")
     void saveFragment() throws IOException {
         VaultFragment fragment = new VaultFragment(new int[]{0}, new byte[]{0x00}, 1);
         String fragmentPath = PropertiesContainer.loadProperties().getStorageProperties().getFragmentPath();
+        SecurityController.getInstance().setMasterPassword(PASSWORD);
 
         boolean saved = SecurityController.getInstance().saveFragment(fragment, fragmentPath);
         assertTrue(saved, "Fragment was not saved");
@@ -38,6 +41,8 @@ class SecurityControllerTest {
     @DisplayName("Load fragment")
     void loadFragment() throws IOException {
         String fragmentPath = PropertiesContainer.loadProperties().getStorageProperties().getFragmentPath();
+        SecurityController.getInstance().setMasterPassword(PASSWORD);
+
         VaultFragment fragment = SecurityController.getInstance().loadFragment(fragmentPath);
         assertNotNull(fragment, "Fragment was not loaded");
     }

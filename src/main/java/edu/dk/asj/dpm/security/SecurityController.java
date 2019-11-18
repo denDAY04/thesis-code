@@ -6,8 +6,14 @@ import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.FileNotFoundException;
-import java.io.IOException;
+import javax.crypto.Cipher;
+import javax.crypto.NoSuchPaddingException;
+import javax.crypto.SecretKey;
+import javax.crypto.SecretKeyFactory;
+import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.PBEKeySpec;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
@@ -22,6 +28,8 @@ import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
 import java.security.SecureRandom;
 import java.security.Security;
+import java.security.spec.InvalidKeySpecException;
+import java.security.spec.KeySpec;
 import java.util.Arrays;
 import java.util.Objects;
 
@@ -33,40 +41,37 @@ import static java.nio.file.StandardOpenOption.WRITE;
  * Singleton controlling the application's different security schemes.
  */
 public class SecurityController {
-
     private static final Logger LOGGER = LoggerFactory.getLogger(SecurityController.class);
+
     private static final String RANDOM_GENERATOR_SCHEME = "DRBG";
-    private static final String HASH_SCHEME_LONG = "SHA3-512";
+
     private static final String HASH_SCHEME_SHORT = "SHA3-256";
+
+    private static final String CIPHER_SCHEME = "AES/GCM/NoPadding";
+    private static final int IV_LENGTH = 96; // IV length recommended by NIST
+
+    private static final String KDF_SCHEME = "PBKDF2WithHmacSHA3-256";
+    private static final int KDF_ITERATIONS = 1000;
+    private static final int KDF_LENGTH = 256;
 
     private static SecurityController instance;
 
-    private byte[] mpHash;
+    private byte[] mpDerivative;
 
 
     private SecurityController() {
         Security.addProvider(new BouncyCastleProvider());
 
-        try {
-            SecureRandom.getInstance(RANDOM_GENERATOR_SCHEME);
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("Invalid random generator algorithm ["+e.getLocalizedMessage()+"]");
-        }
+        getRandomGenerator();
+        getShortHashFunction();
+        getCipherEngine();
 
         try {
-            MessageDigest.getInstance(HASH_SCHEME_LONG, "BC");
+            SecretKeyFactory.getInstance(KDF_SCHEME, "BC");
         } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("Invalid hash algorithm ["+e.getLocalizedMessage()+"]");
+            throw new IllegalStateException("Invalid KDF algorithm ["+e.getMessage()+"]");
         } catch (NoSuchProviderException e) {
-            throw new IllegalStateException("Invalid hash algorithm provider ["+e.getLocalizedMessage()+"]");
-        }
-
-        try {
-            MessageDigest.getInstance(HASH_SCHEME_SHORT, "BC");
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("Invalid hash algorithm ["+e.getLocalizedMessage()+"]");
-        } catch (NoSuchProviderException e) {
-            throw new IllegalStateException("Invalid hash algorithm provider ["+e.getLocalizedMessage()+"]");
+            throw new IllegalStateException("Invalid KDF algorithm provider ["+e.getMessage()+"]");
         }
     }
 
@@ -101,20 +106,19 @@ public class SecurityController {
      * input.
      */
     public boolean isMasterPassword(String pwd) {
-        if (mpHash == null || pwd == null || pwd.isBlank()) {
-            return false;
-        }
-        byte[] inputHash = longHash(pwd);
-        return Arrays.equals(mpHash, inputHash);
+        Objects.requireNonNull(pwd);
+        byte[] inputHash = generatePasswordDerivative(pwd);
+        return Arrays.equals(mpDerivative, inputHash);
     }
 
     /**
      * Store a verification hash of the user's master password in-memory.
-     * @param inputMp the user's input for their master password. It must not have been processed with any hashing prior
+     * @param pwd the user's input for their master password. It must not have been processed with any hashing prior
      *                to use in this method.
      */
-    public void setMasterPassword(String inputMp) {
-        this.mpHash = longHash(inputMp);
+    public void setMasterPassword(String pwd) {
+        Objects.requireNonNull(pwd);
+        this.mpDerivative = generatePasswordDerivative(pwd);
     }
 
     /**
@@ -128,7 +132,7 @@ public class SecurityController {
         Objects.requireNonNull(seed, "Network ID seed must not be null");
 
         MessageDigest hashFunction = getShortHashFunction();
-        hashFunction.update(longHash(password));
+        hashFunction.update(generatePasswordDerivative(password));
         hashFunction.update(seed.getBytes(StandardCharsets.UTF_8));
         return new BigInteger(hashFunction.digest());
     }
@@ -138,9 +142,9 @@ public class SecurityController {
      * and then discards the handle.
      */
     public void clearMasterPassword() {
-        if (mpHash != null) {
-            Arrays.fill(mpHash, (byte) 0x00);
-            mpHash = null;
+        if (mpDerivative != null) {
+            Arrays.fill(mpDerivative, (byte) 0x00);
+            mpDerivative = null;
         }
     }
 
@@ -153,17 +157,16 @@ public class SecurityController {
         LOGGER.debug("Loading local fragment");
 
         StandardOpenOption[] fileOptions = new StandardOpenOption[] { READ };
-        try (InputStream fileStream = Files.newInputStream(Paths.get(storagePath), fileOptions);
-             ObjectInputStream objectStream = new ObjectInputStream(fileStream)) {
-
-            // TODO decrypt fragment
-
-            return (VaultFragment) objectStream.readObject();
-        } catch (IOException e) {
-            LOGGER.warn("Could not read fragment file", e);
-            return null;
-        } catch (ClassNotFoundException e) {
-            LOGGER.error("Fragment file data was corrupted", e);
+        try (InputStream fileStream = Files.newInputStream(Paths.get(storagePath), fileOptions)){
+            byte[] data = decryptFragment(fileStream.readAllBytes());
+            VaultFragment fragment;
+            try (ByteArrayInputStream byteStream = new ByteArrayInputStream(data);
+                 ObjectInputStream objectStream = new ObjectInputStream(byteStream)) {
+                fragment = (VaultFragment) objectStream.readObject();
+            }
+            return fragment;
+        } catch (Exception e) {
+            LOGGER.warn("Could not read from fragment file", e);
             return null;
         }
     }
@@ -179,29 +182,50 @@ public class SecurityController {
 
         StandardOpenOption[] fileOptions = new StandardOpenOption[] { WRITE, TRUNCATE_EXISTING };
         try (OutputStream fileStream = Files.newOutputStream(StorageHelper.getOrCreateStoragePath(storagePath), fileOptions);
-             ObjectOutputStream objectWriter = new ObjectOutputStream(fileStream)) {
+             ByteArrayOutputStream byteStream = new ByteArrayOutputStream();
+             ObjectOutputStream objectStream = new ObjectOutputStream(byteStream)){
 
-            // TODO encrypt fragment
-
-            objectWriter.writeObject(fragment);
+            objectStream.writeObject(fragment);
+            byte[] serializedFragment = byteStream.toByteArray();
+            fileStream.write(encryptFragment(serializedFragment));
             return true;
-        } catch (FileNotFoundException e) {
-            LOGGER.error("Could not create fragment file", e);
-            return false;
-        } catch (IOException e) {
+        } catch (Exception e) {
             LOGGER.error("Could not write to fragment file", e);
             return false;
         }
     }
 
-    private MessageDigest getLongHashFunction() {
-        try {
-            return MessageDigest.getInstance(HASH_SCHEME_LONG, "BC");
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("Invalid hash algorithm ["+e.getLocalizedMessage()+"]");
-        } catch (NoSuchProviderException e) {
-            throw new IllegalStateException("Invalid hash algorithm provider ["+e.getLocalizedMessage()+"]");
-        }
+    private byte[] encryptFragment(byte[] data) throws Exception {
+        Cipher cipher = getCipherEngine();
+        SecretKey key = getEncryptionKey();
+
+        byte[] iv = new byte[IV_LENGTH];
+        getRandomGenerator().nextBytes(iv);
+        IvParameterSpec cipherParams = new IvParameterSpec(iv);
+
+        cipher.init(Cipher.ENCRYPT_MODE, key, cipherParams);
+        cipher.updateAAD(iv);
+
+        byte[] encryptedBytes = cipher.doFinal(data);
+        byte[] fullData = new byte[IV_LENGTH + encryptedBytes.length];
+        System.arraycopy(iv, 0, fullData, 0, IV_LENGTH);
+        System.arraycopy(encryptedBytes, 0, fullData, IV_LENGTH, encryptedBytes.length);
+
+        return fullData;
+    }
+
+    private byte[] decryptFragment(byte[] data) throws Exception {
+        Cipher cipher = getCipherEngine();
+        SecretKey key = getEncryptionKey();
+
+        byte[] iv = Arrays.copyOfRange(data, 0, IV_LENGTH);
+        byte[] encryptedData = Arrays.copyOfRange(data, IV_LENGTH, data.length);
+        IvParameterSpec cipherParams = new IvParameterSpec(iv);
+
+        cipher.init(Cipher.DECRYPT_MODE, key, cipherParams);
+        cipher.updateAAD(iv);
+
+        return cipher.doFinal(encryptedData);
     }
 
     private MessageDigest getShortHashFunction() {
@@ -214,8 +238,50 @@ public class SecurityController {
         }
     }
 
-    private byte[] longHash(String s) {
-        return getLongHashFunction().digest(s.getBytes(StandardCharsets.UTF_8));
+    private SecretKey getEncryptionKey() {
+        try {
+            SecretKeyFactory kdf = SecretKeyFactory.getInstance(KDF_SCHEME, "BC");
+            PBEKeySpec keySpec = new PBEKeySpec(new String(mpDerivative, StandardCharsets.UTF_8).toCharArray(),
+                    new byte[]{0x00},
+                    KDF_ITERATIONS,
+                    KDF_LENGTH);
+            return kdf.generateSecret(keySpec);
+
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("Invalid KDF algorithm ["+e.getMessage()+"]");
+        } catch (NoSuchProviderException e) {
+            throw new IllegalStateException("Invalid KDF algorithm provider ["+e.getMessage()+"]");
+        } catch (InvalidKeySpecException e) {
+            throw new IllegalStateException("Invalid KDF spec ["+e.getMessage()+"]");
+        }
     }
 
+    private Cipher getCipherEngine() {
+        try {
+            return Cipher.getInstance(CIPHER_SCHEME);
+        } catch (NoSuchPaddingException e) {
+            throw new IllegalStateException("Invalid cipher padding ["+e.getMessage()+"]");
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("Invalid cipher algorithm ["+e.getMessage()+"]");
+        }
+    }
+
+    private byte[] generatePasswordDerivative(String password) {
+        try {
+            SecretKeyFactory factory = SecretKeyFactory.getInstance(KDF_SCHEME, "BC");
+            KeySpec keySpec = new PBEKeySpec(password.toCharArray(),
+                    new byte[]{0x00},
+                    KDF_ITERATIONS,
+                    KDF_LENGTH);
+            SecretKey key = factory.generateSecret(keySpec);
+            return key.getEncoded();
+
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("Invalid KDF algorithm ["+e.getMessage()+"]");
+        } catch (NoSuchProviderException e) {
+            throw new IllegalStateException("Invalid KDF algorithm provider ["+e.getMessage()+"]");
+        } catch (InvalidKeySpecException e) {
+            throw new IllegalStateException("Bad KDF spec ["+e.getMessage()+"]");
+        }
+    }
 }

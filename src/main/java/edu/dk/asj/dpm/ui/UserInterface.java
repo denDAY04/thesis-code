@@ -141,6 +141,13 @@ public class UserInterface {
         return textUI.newStringInputReader().read(seedPrompt);
     }
 
+    /**
+     * Prompt the user to simply confirm. This is a convenient wait to pause the UI flow and allow the user to decide
+     * when it should continue.
+     */
+    public void confirmPrompt() {
+        textUI.newStringInputReader().withMinLength(0).read("Press ENTER to continue");
+    }
 
     @SuppressWarnings("SwitchStatementWithTooFewBranches")
     private void handleVaultEntries(List<VaultEntry> entries) {
