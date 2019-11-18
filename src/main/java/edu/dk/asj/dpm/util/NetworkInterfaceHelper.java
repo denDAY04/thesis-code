@@ -13,15 +13,35 @@ import java.util.Collections;
 import java.util.Enumeration;
 import java.util.Random;
 
-public class NetworkInterfaceHelper {
+public final class NetworkInterfaceHelper {
     private static final Logger LOGGER = LoggerFactory.getLogger(NetworkInterfaceHelper.class);
 
+    private static NetworkInterface controller = null;
+    private static InetAddress address = null;
+
     /**
-     * Get the active network interface found on the host system.
-     * @return the active network interface, or null if an error occurred or no active interface could
-     * be determined.
+     * Get the active network interface controller found on the host system.
+     * @return the active network interface, or null if  no active interface could be determined.
      */
-    public static NetworkInterface getActiveNetInterface() {
+    public static NetworkInterface getNetworkInterfaceController() {
+        if (controller == null) {
+            locateNetworkInterface();
+        }
+        return controller;
+    }
+
+    /**
+     * Get the local address of the active network interface controller found on the host system.
+     * @return the interface controller's address, or null if no active interface could be determined.
+     */
+    public static InetAddress getNetworkInterfaceAddress() {
+        if (address == null) {
+            locateNetworkInterface();
+        }
+        return address;
+    }
+
+    private static void locateNetworkInterface() {
         try {
             Enumeration<NetworkInterface> networkInterfaces = NetworkInterface.getNetworkInterfaces();
             for (NetworkInterface networkInterface : Collections.list(networkInterfaces)) {
@@ -58,13 +78,14 @@ public class NetworkInterfaceHelper {
                         continue;
                     }
                     LOGGER.debug("Using network interface {}", networkInterface);
-                    return networkInterface;
+                    controller = networkInterface;
+                    address = netAddress;
+                    return;
                 }
             }
         } catch (IOException e) {
             LOGGER.warn("Exception while determining network interface", e);
         }
         LOGGER.error("Found no fitting interface");
-        return null;
     }
 }

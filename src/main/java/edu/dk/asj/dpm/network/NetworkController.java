@@ -14,16 +14,16 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.math.BigInteger;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Deque;
 import java.util.List;
 import java.util.Objects;
 
 public class NetworkController implements DiscoveryHandler, PacketHandler, AutoCloseable {
     private static final Logger LOGGER = LoggerFactory.getLogger(NetworkController.class);
-    private static final long WAIT_CONNECTION_MS = 10;
+    private static final long IDLE_MS = 50;
 
     private DiscoveryListener discoveryListener;
     private final PropertiesContainer propertiesContainer;
@@ -49,49 +49,31 @@ public class NetworkController implements DiscoveryHandler, PacketHandler, AutoC
      * @throws IOException if an I/O error occurred.
      */
     public Collection<VaultFragment> getNetworkFragments() throws IOException {
+        Deque<ClientConnection> nodeConnections = sendRequestToNetwork(new GetFragmentPacket(networkId));
+
         networkSize = 1;
-        Deque<ClientConnection> connections = discoveryListener.getNetworkConnections();
-        if (connections.isEmpty()) {
-            return Collections.emptyList();
-        }
-
-        GetFragmentPacket getFragmentRequest = new GetFragmentPacket(networkId);
-        connections.forEach(connection -> {
-            connection.setRequest(getFragmentRequest, true);
-            connection.start();
-        });
-
-        List<VaultFragment> fragments = new ArrayList<>(connections.size());
         boolean hasError = false;
-        while (!connections.isEmpty()) {
-            ClientConnection peek = connections.peek();
-            if (peek.isFinished()) {
-                ClientConnection connection = connections.poll();
-                if (connection.getResponse() != null) {
-                    if (connection.getResponse() instanceof FragmentPacket) {
-                        networkSize++;
-                        fragments.add(((FragmentPacket) connection.getResponse()).getFragment());
-                    } else {
-                        LOGGER.warn("Unexpected reply to network fragment request. Expected {} but was {}", FragmentPacket.class, connection.getClass());
-                        hasError = true;
-                    }
-
-                } else if (connection.getError() != null) {
-                    LOGGER.warn("Fragment request error: {}", peek.getError());
-                    hasError = true;
+        List<VaultFragment> fragments = new ArrayList<>(nodeConnections.size());
+        while (!nodeConnections.isEmpty()) {
+            ClientConnection connection = getFinishedConnection(nodeConnections);
+            if (connection.getResponse() != null) {
+                if (connection.getResponse() instanceof FragmentPacket) {
+                    networkSize++;
+                    fragments.add(((FragmentPacket) connection.getResponse()).getFragment());
                 } else {
-                    LOGGER.warn("{} finished with no response or error", connection.getName());
+                    LOGGER.warn("Unexpected reply to network fragment request. Expected {} but was {}", FragmentPacket.class, connection.getClass());
+                    hasError = true;
                 }
+
+            } else if (connection.getError() != null) {
+                LOGGER.warn("Fragment request error: {}", connection.getError());
+                hasError = true;
             } else {
-                try {
-                    Thread.sleep(WAIT_CONNECTION_MS);
-                } catch (InterruptedException e) {
-                    // do nothing
-                }
+                LOGGER.warn("{} finished with no response or error", connection.getName());
             }
 
             if (hasError) {
-                connections.forEach(ClientConnection::close);
+                nodeConnections.forEach(ClientConnection::close);
                 throw new IOException("Failed to get network fragments");
             }
         }
@@ -108,20 +90,15 @@ public class NetworkController implements DiscoveryHandler, PacketHandler, AutoC
         Objects.requireNonNull(fragments, "Fragments must not be null");
         LOGGER.debug("Sending fragments to network");
 
-        Deque<ClientConnection> connections = discoveryListener.getNetworkConnections();
+        Deque<Packet> fragmentRequests = new ArrayDeque<>(fragments.length);
+        for (VaultFragment fragment : fragments) {
+            fragmentRequests.offer(new FragmentPacket(fragment));
+        }
+
+        Deque<ClientConnection> connections = sendRequestsToNetwork(fragmentRequests);
         if (connections.isEmpty()) {
             LOGGER.warn("No network connections to send new fragments to");
             return false;
-        }
-        if (connections.size() != fragments.length) {
-            LOGGER.warn("Cannot send {} fragments to {} nodes", fragments.length, connections.size());
-            return false;
-        }
-
-        int i = 0;
-        for (ClientConnection connection : connections) {
-            connection.setRequest(new FragmentPacket(fragments[i++]), false);
-            connection.start();
         }
 
         while (!connections.isEmpty()) {
@@ -141,22 +118,6 @@ public class NetworkController implements DiscoveryHandler, PacketHandler, AutoC
      */
     public int getNetworkSize() {
         return networkSize;
-    }
-
-    private ClientConnection getFinishedConnection(Deque<ClientConnection> connections) {
-        if (connections.isEmpty()) {
-            return null;
-        }
-
-        ClientConnection peek = connections.peek();
-        while (!peek.isFinished()) {
-            try {
-                Thread.sleep(WAIT_CONNECTION_MS);
-            } catch (InterruptedException e) {
-                // do nothing
-            }
-        }
-        return connections.poll();
     }
 
     @Override
@@ -196,5 +157,63 @@ public class NetworkController implements DiscoveryHandler, PacketHandler, AutoC
     public void error(String error) {
         LOGGER.error("Network error: {}", error);
         throw new RuntimeException("Network controller received a critical error. Please check the application log");
+    }
+
+    private Deque<ClientConnection> sendRequestToNetwork(Packet request) {
+        Deque<ClientConnection> runningConnections = new ArrayDeque<>();
+
+        // Let the listener run its discovery flow (async); as it does it will feed prepared connections into its queue
+        // which we pull from dynamically during the flow, in order to start the connection's get-fragment flow
+        discoveryListener.startNetworkDiscovering();
+        while (discoveryListener.isDiscovering()) {
+            ClientConnection connection = discoveryListener.getNextNodeConnection();
+            if (connection != null) {
+                connection.setRequest(request, true);
+                connection.start();
+                runningConnections.offer(connection);
+            } else {
+                try {
+                    Thread.sleep(IDLE_MS);
+                } catch (InterruptedException e) {
+                    // do nothing
+                }
+            }
+        }
+        return runningConnections;
+    }
+
+    private Deque<ClientConnection> sendRequestsToNetwork(Deque<Packet> requests) {
+        Deque<ClientConnection> runningConnections = new ArrayDeque<>();
+
+        // Let the listener run its discovery flow (async); as it does it will feed prepared connections into its queue
+        // which we pull from dynamically during the flow, in order to start the connection's get-fragment flow
+        discoveryListener.startNetworkDiscovering();
+        while (discoveryListener.isDiscovering()) {
+            ClientConnection connection = discoveryListener.getNextNodeConnection();
+            if (connection != null) {
+                connection.setRequest(requests.poll(), true);
+                connection.start();
+                runningConnections.offer(connection);
+            } else {
+                try {
+                    Thread.sleep(IDLE_MS);
+                } catch (InterruptedException e) {
+                    // do nothing
+                }
+            }
+        }
+        return runningConnections;
+    }
+
+    private ClientConnection getFinishedConnection(Deque<ClientConnection> connections) {
+        ClientConnection peek = connections.peek();
+        while (!Objects.requireNonNull(peek).isFinished()) {
+            try {
+                Thread.sleep(IDLE_MS);
+            } catch (InterruptedException e) {
+                // do nothing
+            }
+        }
+        return connections.poll();
     }
 }

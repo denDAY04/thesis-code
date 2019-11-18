@@ -18,24 +18,31 @@ import java.net.StandardProtocolFamily;
 import java.net.StandardSocketOptions;
 import java.nio.ByteBuffer;
 import java.nio.channels.DatagramChannel;
-import java.util.ArrayDeque;
-import java.util.Deque;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentLinkedDeque;
 
 public class DiscoveryListener extends Thread implements AutoCloseable {
     private static final Logger LOGGER = LoggerFactory.getLogger(DiscoveryListener.class);
+
     private static final int BUFFER_CAPACITY = 1000;
-    private static final long DISCOVERY_TIMEOUT_MS = 1000 * 5;
-    private static final long IDLE_SLEEP_MS = 10;
+
+    private static final long DISCOVERY_TIMEOUT_MS = 5000;
+    private static final long DISCOVERY_IDLE_MS = 5;
+
     private static final String PEER_GROUP_ADDRESS = "232.0.0.0";
     private static final int PEER_GROUP_PORT = 35587;
     private static final InetSocketAddress PEER_GROUP_SOCKET_ADDRESS = new InetSocketAddress(PEER_GROUP_ADDRESS, PEER_GROUP_PORT);
 
     private DatagramChannel channel;
+    private final ByteBuffer discoveryBuffer;
     private final DiscoveryHandler packetHandler;
     private final BigInteger networkId;
-    private final ByteBuffer discoveryBuffer;
+
     private boolean isListening;
+    private boolean closed;
+
+    private boolean isDiscovering;
+    private ConcurrentLinkedDeque<ClientConnection> discoveredNodes;
 
     private DiscoveryListener(DiscoveryHandler packetHandler, BigInteger networkId) {
         super("discovery-listener");
@@ -43,6 +50,9 @@ public class DiscoveryListener extends Thread implements AutoCloseable {
         this.networkId = networkId;
         discoveryBuffer = ByteBuffer.allocate(BUFFER_CAPACITY);
         isListening = false;
+        closed = false;
+        isDiscovering = false;
+        discoveredNodes = new ConcurrentLinkedDeque<>();
 
         if (!openConnection()) {
             cleanUp();
@@ -77,59 +87,22 @@ public class DiscoveryListener extends Thread implements AutoCloseable {
         do {
             if (isListening) {
                 threwError = listenForDiscoveries();
+            } else if (isDiscovering) {
+                try {
+                    discoverNodes();
+                } catch (IOException e) {
+                    LOGGER.error("Exception while discovering network", e);
+                    threwError = true;
+                }
             }
             try {
-                sleep(IDLE_SLEEP_MS);
+                sleep(DISCOVERY_IDLE_MS);
             } catch (InterruptedException e) {
                 // do nothing
             }
-        } while (!threwError);
+        } while (!threwError && !closed);
 
         cleanUp();
-    }
-
-    public synchronized Deque<ClientConnection> getNetworkConnections() throws IOException {
-        LOGGER.info("Getting network connections");
-
-        // send discovery packet to network
-        DiscoveryPacket packet = new DiscoveryPacket(networkId);
-        ByteBuffer sendBuffer = ByteBuffer.wrap(packet.serialize());
-        try {
-            LOGGER.debug("Sending request {} to {}", packet, PEER_GROUP_SOCKET_ADDRESS);
-            channel.send(sendBuffer, PEER_GROUP_SOCKET_ADDRESS);
-        } catch (IOException e) {
-            LOGGER.error("Could not send request", e);
-            throw new IOException("Cloud not discover network - sending request");
-        }
-
-        // listen for echo replies and establish connections
-        Deque<ClientConnection> connections = new ArrayDeque<>();
-        ByteBuffer receiveBuffer = ByteBuffer.allocate(BUFFER_CAPACITY);
-        long discoveryEndTime = System.currentTimeMillis() + DISCOVERY_TIMEOUT_MS;
-        LOGGER.debug("Waiting for responses");
-
-        while (System.currentTimeMillis() < discoveryEndTime) {
-            SocketAddress sender = channel.receive(receiveBuffer);
-            if (sender != null) {
-                Packet response = Packet.deserialize(BufferHelper.readAndClear(receiveBuffer));
-                if (response instanceof DiscoveryEchoPacket) {
-                    InetSocketAddress discoveredNodeAddress = new InetSocketAddress(
-                            ((InetSocketAddress) sender).getAddress(),
-                            ((DiscoveryEchoPacket) response).getConnectionPort());
-                    LOGGER.debug("Discovered node connection {}", discoveredNodeAddress);
-                    connections.offer(ClientConnection.prepare(discoveredNodeAddress));
-                } else {
-                    LOGGER.warn("Unexpected discovery response {}", response);
-                }
-            } else {
-                try {
-                    sleep(IDLE_SLEEP_MS);
-                } catch (InterruptedException e) {
-                    // do nothing
-                }
-            }
-        }
-        return connections;
     }
 
     /**
@@ -140,8 +113,21 @@ public class DiscoveryListener extends Thread implements AutoCloseable {
         isListening = true;
     }
 
+    public void startNetworkDiscovering() {
+        isDiscovering = true;
+    }
+
+    public boolean isDiscovering() {
+        return isDiscovering;
+    }
+
+    public ClientConnection getNextNodeConnection() {
+        return discoveredNodes.poll();
+    }
+
     @Override
-    public void close() {
+    public synchronized void close() {
+        closed = true;
         cleanUp();
     }
 
@@ -160,7 +146,7 @@ public class DiscoveryListener extends Thread implements AutoCloseable {
     private boolean openConnection() {
         LOGGER.debug("Opening channel");
         try {
-            NetworkInterface nic = NetworkInterfaceHelper.getActiveNetInterface();
+            NetworkInterface nic = NetworkInterfaceHelper.getNetworkInterfaceController();
             if (nic == null) {
                 LOGGER.error("Could not determine a valid network interface");
                 return false;
@@ -212,6 +198,48 @@ public class DiscoveryListener extends Thread implements AutoCloseable {
             hasError = true;
         }
         return hasError;
+    }
+
+    private synchronized void discoverNodes() throws IOException {
+        LOGGER.info("Discovering network nodes");
+
+        // send discovery packet to network
+        DiscoveryPacket packet = new DiscoveryPacket(networkId);
+        ByteBuffer sendBuffer = ByteBuffer.wrap(packet.serialize());
+        try {
+            LOGGER.debug("Sending request {} to {}", packet, PEER_GROUP_SOCKET_ADDRESS);
+            channel.send(sendBuffer, PEER_GROUP_SOCKET_ADDRESS);
+        } catch (IOException e) {
+            throw new IOException("Cloud not send discovery request", e);
+        }
+
+        // listen for echo replies and establish connections
+        ByteBuffer receiveBuffer = ByteBuffer.allocate(BUFFER_CAPACITY);
+        long discoveryEndTime = System.currentTimeMillis() + DISCOVERY_TIMEOUT_MS;
+        LOGGER.debug("Waiting for responses");
+
+        while (System.currentTimeMillis() < discoveryEndTime) {
+            SocketAddress sender = channel.receive(receiveBuffer);
+            if (sender != null) {
+                Packet response = Packet.deserialize(BufferHelper.readAndClear(receiveBuffer));
+                if (response instanceof DiscoveryEchoPacket) {
+                    InetSocketAddress discoveredNodeAddress = new InetSocketAddress(
+                            ((InetSocketAddress) sender).getAddress(),
+                            ((DiscoveryEchoPacket) response).getConnectionPort());
+                    LOGGER.debug("Discovered node connection {}", discoveredNodeAddress);
+                    discoveredNodes.offer(ClientConnection.prepare(discoveredNodeAddress));
+                } else {
+                    LOGGER.warn("Unexpected discovery response {}", response);
+                }
+            } else {
+                try {
+                    sleep(DISCOVERY_IDLE_MS);
+                } catch (InterruptedException e) {
+                    // do nothing
+                }
+            }
+        }
+        isDiscovering = false;
     }
 
     private boolean isValidRequest(Packet request) {

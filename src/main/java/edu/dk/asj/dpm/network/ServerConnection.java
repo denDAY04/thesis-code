@@ -3,11 +3,13 @@ package edu.dk.asj.dpm.network;
 
 import edu.dk.asj.dpm.network.packets.Packet;
 import edu.dk.asj.dpm.util.BufferHelper;
+import edu.dk.asj.dpm.util.NetworkInterfaceHelper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.net.SocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.AsynchronousServerSocketChannel;
 import java.nio.channels.AsynchronousSocketChannel;
@@ -18,13 +20,12 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 public class ServerConnection extends Thread implements AutoCloseable {
-
     private static final Logger LOGGER = LoggerFactory.getLogger(ServerConnection.class);
 
     private static final int BUFFER_CAPACITY = 10 * 1000 * 1000;
-    private static final long TIMEOUT = 5L;
+    private static final long TIMEOUT = 10L;
 
-    private AsynchronousServerSocketChannel server;
+    private AsynchronousServerSocketChannel connectionListener;
     private AsynchronousSocketChannel connection;
     private PacketHandler packetHandler;
     private int port;
@@ -32,11 +33,12 @@ public class ServerConnection extends Thread implements AutoCloseable {
     private ServerConnection(PacketHandler packetHandler) {
         this.packetHandler = packetHandler;
         try {
-            server = AsynchronousServerSocketChannel.open();
-            server.bind(new InetSocketAddress(0));
-
-            port = ((InetSocketAddress)server.getLocalAddress()).getPort();
+            SocketAddress nicWithRandPort = new InetSocketAddress(NetworkInterfaceHelper.getNetworkInterfaceAddress(), 0);
+            connectionListener = AsynchronousServerSocketChannel.open().bind(nicWithRandPort);
+            port = ((InetSocketAddress) connectionListener.getLocalAddress()).getPort();
             setName("server:" + port);
+            LOGGER.debug("Opened server connection listener on {}", connectionListener.getLocalAddress());
+
         } catch (IOException e) {
             LOGGER.error("Could not bind server socket", e);
             cleanUp();
@@ -56,8 +58,6 @@ public class ServerConnection extends Thread implements AutoCloseable {
 
     @Override
     public void run() {
-        super.run();
-
         if (!acceptConnection()) {
             cleanUp();;
             return;
@@ -88,13 +88,13 @@ public class ServerConnection extends Thread implements AutoCloseable {
     }
 
     @Override
-    public void close() {
+    public synchronized void close() {
         cleanUp();
     }
 
     private boolean acceptConnection() {
         LOGGER.debug("Waiting for connections");
-        Future<AsynchronousSocketChannel> acceptPromise = server.accept();
+        Future<AsynchronousSocketChannel> acceptPromise = connectionListener.accept();
 
         try {
             connection = acceptPromise.get(TIMEOUT, TimeUnit.SECONDS);
@@ -105,10 +105,12 @@ public class ServerConnection extends Thread implements AutoCloseable {
             LOGGER.warn("Interrupted while waiting for request");
             acceptPromise.cancel(true);
             packetHandler.error("An error occurred while waiting for a server request");
+
         } catch (ExecutionException e) {
             LOGGER.warn("Unknown exception while waiting for request", e);
             acceptPromise.cancel(true);
             packetHandler.error("An error occurred while waiting for a server request");
+
         } catch (TimeoutException e) {
             LOGGER.warn("Timed out while waiting for request");
             acceptPromise.cancel(true);
@@ -131,10 +133,12 @@ public class ServerConnection extends Thread implements AutoCloseable {
             LOGGER.warn("Interrupted while receiving request");
             promise.cancel(true);
             packetHandler.error("An error occurred while receiving a node response");
+
         } catch (ExecutionException e) {
             LOGGER.warn("Unknown exception during receive", e);
             promise.cancel(true);
             packetHandler.error("An error occurred while receiving a node response");
+
         } catch (TimeoutException e) {
             LOGGER.warn("Receive timed out");
             promise.cancel(true);
@@ -152,14 +156,17 @@ public class ServerConnection extends Thread implements AutoCloseable {
         try {
             promise.get(TIMEOUT, TimeUnit.SECONDS);
             LOGGER.debug("Response sent");
+
         } catch (InterruptedException e) {
             LOGGER.warn("Interrupted while sending response");
             promise.cancel(true);
             packetHandler.error("An error occurred while sending server response");
+
         } catch (ExecutionException e) {
             LOGGER.warn("Unknown exception while sending response", e);
             promise.cancel(true);
             packetHandler.error("An error occurred while sending server response");
+
         } catch (TimeoutException e) {
             LOGGER.warn("Send timed out");
             promise.cancel(true);
@@ -177,9 +184,9 @@ public class ServerConnection extends Thread implements AutoCloseable {
             }
         }
 
-        if (server != null && server.isOpen()) {
+        if (connectionListener != null && connectionListener.isOpen()) {
             try {
-                server.close();
+                connectionListener.close();
             } catch (IOException e) {
                 LOGGER.error("Failed to clean up server", e);
             }
