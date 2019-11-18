@@ -26,8 +26,8 @@ public class DiscoveryListener extends Thread implements AutoCloseable {
 
     private static final int BUFFER_CAPACITY = 1000;
 
-    private static final long DISCOVERY_TIMEOUT_MS = 5000;
-    private static final long DISCOVERY_IDLE_MS = 5;
+    private static final long DISCOVERY_TIME_MS = 1000;
+    private static final long DISCOVERY_IDLE_MS = 10;
 
     private static final String PEER_GROUP_ADDRESS = "232.0.0.0";
     private static final int PEER_GROUP_PORT = 35587;
@@ -216,7 +216,7 @@ public class DiscoveryListener extends Thread implements AutoCloseable {
 
         // listen for echo replies and establish connections
         ByteBuffer receiveBuffer = ByteBuffer.allocate(BUFFER_CAPACITY);
-        long discoveryEndTime = System.currentTimeMillis() + DISCOVERY_TIMEOUT_MS;
+        long discoveryEndTime = System.currentTimeMillis() + DISCOVERY_TIME_MS;
         LOGGER.debug("Waiting for responses");
 
         while (System.currentTimeMillis() < discoveryEndTime) {

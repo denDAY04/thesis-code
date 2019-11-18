@@ -42,6 +42,7 @@ public class UserInterface {
                 signIn();
             }
 
+            message("-- Main Menu --");
             MenuAction action = textUI.newEnumInputReader(MenuAction.class).read();
             switch (action){
                 case ShowVault:
@@ -145,7 +146,7 @@ public class UserInterface {
     private void handleVaultEntries(List<VaultEntry> entries) {
         clearScreen();
 
-        message(":: Vault Entries ::");
+        message("-- Vault Entries --");
         if (entries == null || entries.isEmpty()){
             message("No entries found");
             EmptyVaultAction action = textUI.newEnumInputReader(EmptyVaultAction.class).read();
@@ -177,7 +178,9 @@ public class UserInterface {
                     if (!removed) {
                         error("Could not delete entry");
                     } else {
+                        message("Deleting entry...");
                         application.notifyVaultChange();
+                        clearScreen();
                         message("Entry deleted");
                     }
                     break;
@@ -191,6 +194,7 @@ public class UserInterface {
 
     private void addVaultEntry() {
         clearScreen();
+        message("-- New Entry --");
         message("Adding new entry ([x] to abort and go back)");
 
         String name = textUI.newStringInputReader().read("New entry name:");
@@ -209,7 +213,9 @@ public class UserInterface {
         if (!added) {
             error("Could not add new entry to vault");
         } else {
+            message("Adding entry");
             application.notifyVaultChange();
+            clearScreen();
             message("Entry added");
         }
     }
@@ -219,6 +225,7 @@ public class UserInterface {
 
         boolean authenticated = false;
         do {
+            message("-- Welcome --");
             SignInAction action = textUI.newEnumInputReader(SignInAction.class).read();
             switch (action) {
 
@@ -243,6 +250,7 @@ public class UserInterface {
         } while (!authenticated);
         signedIn = true;
         application.constructVault();
+        clearScreen();
     }
 
     private void signOut() {

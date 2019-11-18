@@ -74,9 +74,13 @@ public class Application {
      * Construct the secure vault
      */
     public void constructVault() {
+        ui.message("Loading local data...");
         VaultFragment localFragment = securityController.loadFragment(propertiesContainer.getStorageProperties().getFragmentPath());
         try {
+            ui.message("Loading node network data...");
             Collection<VaultFragment> networkFragments = networkController.getNetworkFragments();
+
+            ui.message("Building vault...");
             SecureVault.Builder builder = SecureVault.builder();
             builder.addFragment(localFragment);
             networkFragments.forEach(builder::addFragment);

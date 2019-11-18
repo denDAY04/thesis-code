@@ -49,7 +49,7 @@ public class NetworkController implements DiscoveryHandler, PacketHandler, AutoC
      * @throws IOException if an I/O error occurred.
      */
     public Collection<VaultFragment> getNetworkFragments() throws IOException {
-        Deque<ClientConnection> nodeConnections = sendRequestToNetwork(new GetFragmentPacket(networkId));
+        Deque<ClientConnection> nodeConnections = sendRequestToNetwork(new GetFragmentPacket(networkId), true);
 
         networkSize = 1;
         boolean hasError = false;
@@ -60,6 +60,7 @@ public class NetworkController implements DiscoveryHandler, PacketHandler, AutoC
                 if (connection.getResponse() instanceof FragmentPacket) {
                     networkSize++;
                     fragments.add(((FragmentPacket) connection.getResponse()).getFragment());
+                    LOGGER.debug("Accepted fragment from {}", connection.getName());
                 } else {
                     LOGGER.warn("Unexpected reply to network fragment request. Expected {} but was {}", FragmentPacket.class, connection.getClass());
                     hasError = true;
@@ -95,7 +96,7 @@ public class NetworkController implements DiscoveryHandler, PacketHandler, AutoC
             fragmentRequests.offer(new FragmentPacket(fragment));
         }
 
-        Deque<ClientConnection> connections = sendRequestsToNetwork(fragmentRequests);
+        Deque<ClientConnection> connections = sendRequestsToNetwork(fragmentRequests, false);
         if (connections.isEmpty()) {
             LOGGER.warn("No network connections to send new fragments to");
             return false;
@@ -159,7 +160,7 @@ public class NetworkController implements DiscoveryHandler, PacketHandler, AutoC
         throw new RuntimeException("Network controller received a critical error. Please check the application log");
     }
 
-    private Deque<ClientConnection> sendRequestToNetwork(Packet request) {
+    private Deque<ClientConnection> sendRequestToNetwork(Packet request, boolean requreResponse) {
         Deque<ClientConnection> runningConnections = new ArrayDeque<>();
 
         // Let the listener run its discovery flow (async); as it does it will feed prepared connections into its queue
@@ -168,8 +169,10 @@ public class NetworkController implements DiscoveryHandler, PacketHandler, AutoC
         while (discoveryListener.isDiscovering()) {
             ClientConnection connection = discoveryListener.getNextNodeConnection();
             if (connection != null) {
-                connection.setRequest(request, true);
+                connection.setRequest(request, requreResponse);
                 connection.start();
+
+                LOGGER.debug("Offering node {} to queue", connection);
                 runningConnections.offer(connection);
             } else {
                 try {
@@ -179,10 +182,12 @@ public class NetworkController implements DiscoveryHandler, PacketHandler, AutoC
                 }
             }
         }
+
+        LOGGER.debug("Finished sending request to network");
         return runningConnections;
     }
 
-    private Deque<ClientConnection> sendRequestsToNetwork(Deque<Packet> requests) {
+    private Deque<ClientConnection> sendRequestsToNetwork(Deque<Packet> requests, boolean requireResponse) {
         Deque<ClientConnection> runningConnections = new ArrayDeque<>();
 
         // Let the listener run its discovery flow (async); as it does it will feed prepared connections into its queue
@@ -191,8 +196,10 @@ public class NetworkController implements DiscoveryHandler, PacketHandler, AutoC
         while (discoveryListener.isDiscovering()) {
             ClientConnection connection = discoveryListener.getNextNodeConnection();
             if (connection != null) {
-                connection.setRequest(requests.poll(), true);
+                connection.setRequest(requests.poll(), requireResponse);
                 connection.start();
+
+                LOGGER.debug("Offering node {} to queue", connection);
                 runningConnections.offer(connection);
             } else {
                 try {
@@ -202,13 +209,17 @@ public class NetworkController implements DiscoveryHandler, PacketHandler, AutoC
                 }
             }
         }
+
+        LOGGER.debug("Finished sending requests to network");
         return runningConnections;
     }
 
     private ClientConnection getFinishedConnection(Deque<ClientConnection> connections) {
+        LOGGER.debug("Getting net finished connection");
         ClientConnection peek = connections.peek();
         while (!Objects.requireNonNull(peek).isFinished()) {
             try {
+                LOGGER.debug("Waiting...");
                 Thread.sleep(IDLE_MS);
             } catch (InterruptedException e) {
                 // do nothing
