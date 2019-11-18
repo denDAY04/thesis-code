@@ -14,7 +14,6 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.math.BigInteger;
-import java.net.SocketAddress;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -166,7 +165,7 @@ public class NetworkController implements DiscoveryHandler, PacketHandler, AutoC
     }
 
     @Override
-    public DiscoveryEchoPacket process(DiscoveryPacket packet, SocketAddress sender) {
+    public DiscoveryEchoPacket process(DiscoveryPacket packet) {
         ServerConnection connection = ServerConnection.open(this);
         return new DiscoveryEchoPacket(connection.getPort());
     }

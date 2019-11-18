@@ -10,7 +10,12 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.math.BigInteger;
-import java.net.*;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.NetworkInterface;
+import java.net.SocketAddress;
+import java.net.StandardProtocolFamily;
+import java.net.StandardSocketOptions;
 import java.nio.ByteBuffer;
 import java.nio.channels.DatagramChannel;
 import java.util.ArrayDeque;
@@ -21,15 +26,15 @@ public class DiscoveryListener extends Thread implements AutoCloseable {
     private static final Logger LOGGER = LoggerFactory.getLogger(DiscoveryListener.class);
     private static final int BUFFER_CAPACITY = 1000;
     private static final long DISCOVERY_TIMEOUT_MS = 1000 * 5;
-    private static final long IDLE_SLEEP_MS = 50;
+    private static final long IDLE_SLEEP_MS = 10;
     private static final String PEER_GROUP_ADDRESS = "232.0.0.0";
     private static final int PEER_GROUP_PORT = 35587;
+    private static final InetSocketAddress PEER_GROUP_SOCKET_ADDRESS = new InetSocketAddress(PEER_GROUP_ADDRESS, PEER_GROUP_PORT);
 
     private DatagramChannel channel;
     private final DiscoveryHandler packetHandler;
     private final BigInteger networkId;
     private final ByteBuffer discoveryBuffer;
-    private final InetSocketAddress networkSocketAddress;
     private boolean isListening;
 
     private DiscoveryListener(DiscoveryHandler packetHandler, BigInteger networkId) {
@@ -38,7 +43,6 @@ public class DiscoveryListener extends Thread implements AutoCloseable {
         this.networkId = networkId;
         discoveryBuffer = ByteBuffer.allocate(BUFFER_CAPACITY);
         isListening = false;
-        networkSocketAddress = new InetSocketAddress(PEER_GROUP_ADDRESS, PEER_GROUP_PORT);
 
         if (!openConnection()) {
             cleanUp();
@@ -91,8 +95,8 @@ public class DiscoveryListener extends Thread implements AutoCloseable {
         DiscoveryPacket packet = new DiscoveryPacket(networkId);
         ByteBuffer sendBuffer = ByteBuffer.wrap(packet.serialize());
         try {
-            LOGGER.debug("Sending request {} to {}", packet, networkSocketAddress);
-            channel.send(sendBuffer, networkSocketAddress);
+            LOGGER.debug("Sending request {} to {}", packet, PEER_GROUP_SOCKET_ADDRESS);
+            channel.send(sendBuffer, PEER_GROUP_SOCKET_ADDRESS);
         } catch (IOException e) {
             LOGGER.error("Could not send request", e);
             throw new IOException("Cloud not discover network - sending request");
@@ -103,6 +107,7 @@ public class DiscoveryListener extends Thread implements AutoCloseable {
         ByteBuffer receiveBuffer = ByteBuffer.allocate(BUFFER_CAPACITY);
         long discoveryEndTime = System.currentTimeMillis() + DISCOVERY_TIMEOUT_MS;
         LOGGER.debug("Waiting for responses");
+
         while (System.currentTimeMillis() < discoveryEndTime) {
             SocketAddress sender = channel.receive(receiveBuffer);
             if (sender != null) {
@@ -184,10 +189,11 @@ public class DiscoveryListener extends Thread implements AutoCloseable {
                 Packet request = Packet.deserialize(BufferHelper.readAndClear(discoveryBuffer));
 
                 if (isValidRequest(request)) {
-                    Packet response = packetHandler.process((DiscoveryPacket) request, sender);
+                    Packet response = packetHandler.process((DiscoveryPacket) request);
                     if (response != null) {
                         ByteBuffer responseBuffer = ByteBuffer.wrap(response.serialize());
                         try {
+                            LOGGER.debug("Sending discovery response {} to {}", response, sender);
                             channel.send(responseBuffer, sender);
                         } catch (IOException e) {
                             LOGGER.warn("Unexpected exception while sending response", e);
@@ -210,11 +216,14 @@ public class DiscoveryListener extends Thread implements AutoCloseable {
             LOGGER.debug("Ignoring invalid request packet.");
             return false;
         }
+
         DiscoveryPacket discoveryRequest = (DiscoveryPacket) request;
         if (!networkId.equals(discoveryRequest.getNetworkId())) {
             LOGGER.debug("Ignoring discovery request from incorrect network ID {}", discoveryRequest.getNetworkId());
             return false;
         }
+
+        LOGGER.debug("Discovery request Is valid");
         return true;
     }
 }
