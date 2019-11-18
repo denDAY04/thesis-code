@@ -88,8 +88,10 @@ public class Application {
         } catch (IOException | ClassNotFoundException e) {
             LOGGER.error("Fetch vault fragments exception", e);
             ui.fatal("Encountered an error while retrieving the vault from node network");
+        } catch (IllegalStateException e) {
+            LOGGER.error("Vault construction not complete", e);
+            ui.fatal("Could not retrieve all vault fragments. Maybe some nodes are offline?");
         }
-
     }
 
     /**
