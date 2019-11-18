@@ -55,8 +55,9 @@ public class NetworkController implements DiscoveryHandler, PacketHandler, AutoC
             return Collections.emptyList();
         }
 
+        GetFragmentPacket getFragmentRequest = new GetFragmentPacket(networkId);
         connections.forEach(connection -> {
-            connection.setRequest(new GetFragmentPacket(networkId), true);
+            connection.setRequest(getFragmentRequest, true);
             connection.start();
         });
 
@@ -79,7 +80,7 @@ public class NetworkController implements DiscoveryHandler, PacketHandler, AutoC
                     LOGGER.warn("Fragment request error: {}", peek.getError());
                     hasError = true;
                 } else {
-                    LOGGER.debug("Connection {} finished with no response or error", connection.getName());
+                    LOGGER.warn("{} finished with no response or error", connection.getName());
                 }
             } else {
                 try {

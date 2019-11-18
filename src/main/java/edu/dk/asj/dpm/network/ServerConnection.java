@@ -36,7 +36,7 @@ public class ServerConnection extends Thread implements AutoCloseable {
             server.bind(new InetSocketAddress(0));
 
             port = ((InetSocketAddress)server.getLocalAddress()).getPort();
-            setName("server-p:" + port);
+            setName("server:" + port);
         } catch (IOException e) {
             LOGGER.error("Could not bind server socket", e);
             cleanUp();
