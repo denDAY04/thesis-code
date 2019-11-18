@@ -85,15 +85,15 @@ public class DiscoveryListener extends Thread implements AutoCloseable {
 
         boolean threwError = false;
         do {
-            if (isListening) {
-                threwError = listenForDiscoveries();
-            } else if (isDiscovering) {
+            if (isDiscovering) {
                 try {
                     discoverNodes();
                 } catch (IOException e) {
                     LOGGER.error("Exception while discovering network", e);
                     threwError = true;
                 }
+            } else if (isListening) {
+                threwError = listenForDiscoveries();
             }
             try {
                 sleep(DISCOVERY_IDLE_MS);
@@ -113,7 +113,7 @@ public class DiscoveryListener extends Thread implements AutoCloseable {
         isListening = true;
     }
 
-    public void startNetworkDiscovering() {
+    public void startNetworkDiscovery() {
         isDiscovering = true;
     }
 
@@ -210,6 +210,7 @@ public class DiscoveryListener extends Thread implements AutoCloseable {
             LOGGER.debug("Sending request {} to {}", packet, PEER_GROUP_SOCKET_ADDRESS);
             channel.send(sendBuffer, PEER_GROUP_SOCKET_ADDRESS);
         } catch (IOException e) {
+            isDiscovering = false;
             throw new IOException("Cloud not send discovery request", e);
         }
 

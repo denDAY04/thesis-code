@@ -164,7 +164,7 @@ public class NetworkController implements DiscoveryHandler, PacketHandler, AutoC
 
         // Let the listener run its discovery flow (async); as it does it will feed prepared connections into its queue
         // which we pull from dynamically during the flow, in order to start the connection's get-fragment flow
-        discoveryListener.startNetworkDiscovering();
+        discoveryListener.startNetworkDiscovery();
         while (discoveryListener.isDiscovering()) {
             ClientConnection connection = discoveryListener.getNextNodeConnection();
             if (connection != null) {
@@ -187,7 +187,7 @@ public class NetworkController implements DiscoveryHandler, PacketHandler, AutoC
 
         // Let the listener run its discovery flow (async); as it does it will feed prepared connections into its queue
         // which we pull from dynamically during the flow, in order to start the connection's get-fragment flow
-        discoveryListener.startNetworkDiscovering();
+        discoveryListener.startNetworkDiscovery();
         while (discoveryListener.isDiscovering()) {
             ClientConnection connection = discoveryListener.getNextNodeConnection();
             if (connection != null) {
