@@ -30,10 +30,11 @@ public class ClientConnection extends Thread implements AutoCloseable {
     private Packet response;
     private String error;
     private boolean requireResponse;
+    private boolean finished;
 
 
     private ClientConnection(SocketAddress destination, Packet request, boolean requireResponse) {
-        super("connection-" + destination.toString());
+        super("connection" + destination.toString());
         this.destination = destination;
         this.request = request;
         this.requireResponse = requireResponse;
@@ -52,7 +53,6 @@ public class ClientConnection extends Thread implements AutoCloseable {
 
         ClientConnection connection = new ClientConnection(destination, request, requireResponse);
         connection.start();
-        LOGGER.info("Started client connection with send");
         return connection;
     }
 
@@ -65,14 +65,12 @@ public class ClientConnection extends Thread implements AutoCloseable {
      */
     public static ClientConnection prepare(SocketAddress destination) {
         Objects.requireNonNull(destination, "Destination must not be null");
-
-        ClientConnection connection = new ClientConnection(destination, null, true);
-        LOGGER.info("Started client connection with prepare");
-        return connection;
+        return new ClientConnection(destination, null, true);
     }
 
     @Override
     public synchronized void start() {
+        LOGGER.debug("Started client connection");
         if (request == null) {
             throw new IllegalStateException("Connection does not have a request");
         }
@@ -112,7 +110,7 @@ public class ClientConnection extends Thread implements AutoCloseable {
      * @return true if the connection flow has finished; false otherwise.
      */
     public boolean isFinished() {
-        return isAlive();
+        return finished;
     }
 
     /**
@@ -202,7 +200,7 @@ public class ClientConnection extends Thread implements AutoCloseable {
         return false;
     }
 
-    private boolean receiveResponse() {
+    private void receiveResponse() {
         LOGGER.debug("Receiving response");
         ByteBuffer responseBuffer= ByteBuffer.allocate(BUFFER_CAPACITY);
         Future<Integer> receivePromise = connection.read(responseBuffer);
@@ -211,7 +209,6 @@ public class ClientConnection extends Thread implements AutoCloseable {
             receivePromise.get(TIMEOUT, TimeUnit.SECONDS);
             LOGGER.debug("Received response");
             response = Packet.deserialize(BufferHelper.readAndClear(responseBuffer));
-            return true;
 
         } catch (InterruptedException e) {
             LOGGER.warn("Interrupted while receiving response");
@@ -224,12 +221,11 @@ public class ClientConnection extends Thread implements AutoCloseable {
             receivePromise.cancel(true);
             error = "No response";
         }
-
-        return false;
     }
 
     private void cleanUp() {
         LOGGER.info("Cleaning up");
+        finished = true;
         if (connection != null && connection.isOpen()) {
             try {
                 connection.close();

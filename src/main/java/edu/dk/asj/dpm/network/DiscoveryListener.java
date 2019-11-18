@@ -108,10 +108,13 @@ public class DiscoveryListener extends Thread implements AutoCloseable {
             if (sender != null) {
                 Packet response = Packet.deserialize(BufferHelper.readAndClear(receiveBuffer));
                 if (response instanceof DiscoveryEchoPacket) {
-                    LOGGER.debug("Receiver discovery echo from {}", sendBuffer);
-                    connections.offer(ClientConnection.prepare(sender));
+                    InetSocketAddress discoveredNodeAddress = new InetSocketAddress(
+                            ((InetSocketAddress) sender).getAddress(),
+                            ((DiscoveryEchoPacket) response).getConnectionPort());
+                    LOGGER.debug("Discovered node connection {}", discoveredNodeAddress);
+                    connections.offer(ClientConnection.prepare(discoveredNodeAddress));
                 } else {
-                    LOGGER.warn("Unexpected discovery reply type {}", response.getClass());
+                    LOGGER.warn("Unexpected discovery response {}", response);
                 }
             } else {
                 try {
