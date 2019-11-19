@@ -11,7 +11,9 @@ import org.junit.jupiter.api.TestMethodOrder;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.UUID;
 
+import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -78,5 +80,24 @@ class SecurityControllerTest {
 
         controller.clearMasterPassword();
         assertFalse(controller.isMasterPassword(password), "Password was not cleared");
+    }
+
+    @Test
+    @DisplayName("Generate SAE parameters")
+    void generateSAEParams() {
+        SecurityController controller = SecurityController.getInstance();
+        String password = "12345";
+        controller.setMasterPassword(password);
+
+        UUID identity1 = UUID.fromString("78870074-6f99-449e-981b-eb5a3f67b5f1");
+        UUID identity2 = UUID.fromString("4c25c750-3413-49ca-8712-f441a7eb7e1d");
+        SAESession session = controller.initiateSaeSession(identity1, identity2);
+
+        assertNotNull(session, "SAE session is null");
+        assertAll("Session data",
+                () -> assertNotNull(session.getPwe(), "Password element is null"),
+                () -> assertNotNull(session.getRand(), "Random is null"),
+                () -> assertNotNull(session.getParameters().getScalar(), "Scalar parameters is null"),
+                () -> assertNotNull(session.getParameters().getElem(), "Elem parameter is null"));
     }
 }

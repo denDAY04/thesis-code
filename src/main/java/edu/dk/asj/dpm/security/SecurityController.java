@@ -3,6 +3,10 @@ package edu.dk.asj.dpm.security;
 import edu.dk.asj.dpm.util.StorageHelper;
 import edu.dk.asj.dpm.vault.VaultFragment;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import org.bouncycastle.math.ec.ECCurve;
+import org.bouncycastle.math.ec.ECFieldElement;
+import org.bouncycastle.math.ec.ECPoint;
+import org.bouncycastle.math.ec.custom.djb.Curve25519;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -32,6 +36,7 @@ import java.security.spec.InvalidKeySpecException;
 import java.security.spec.KeySpec;
 import java.util.Arrays;
 import java.util.Objects;
+import java.util.UUID;
 
 import static java.nio.file.StandardOpenOption.READ;
 import static java.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
@@ -56,6 +61,8 @@ public class SecurityController {
 
     private static SecurityController instance;
 
+    private final ECCurve ec;
+
     private byte[] mpDerivative;
 
 
@@ -63,7 +70,7 @@ public class SecurityController {
         Security.addProvider(new BouncyCastleProvider());
 
         getRandomGenerator();
-        getShortHashFunction();
+        getHashFunction();
         getCipherEngine();
 
         try {
@@ -73,6 +80,7 @@ public class SecurityController {
         } catch (NoSuchProviderException e) {
             throw new IllegalStateException("Invalid KDF algorithm provider ["+e.getMessage()+"]");
         }
+        ec = new Curve25519();
     }
 
     /**
@@ -131,7 +139,7 @@ public class SecurityController {
         Objects.requireNonNull(password, "Master password must not be null");
         Objects.requireNonNull(seed, "Network ID seed must not be null");
 
-        MessageDigest hashFunction = getShortHashFunction();
+        MessageDigest hashFunction = getHashFunction();
         hashFunction.update(generatePasswordDerivative(password));
         hashFunction.update(seed.getBytes(StandardCharsets.UTF_8));
         return new BigInteger(hashFunction.digest());
@@ -195,6 +203,125 @@ public class SecurityController {
         }
     }
 
+    /**
+     * Initiate a session for the SAE authentication protocol, generating its parameters and secret primitives.
+     * @param localNode the identity of this local node.
+     * @param remoteNode the identity of the remote node.
+     * @return the initiated SAE session. Note that the session does not yet have an initialized <i>sharedKey</i> value,
+     * but all other fields are initialized.
+     */
+    public SAESession initiateSaeSession(UUID localNode, UUID remoteNode) {
+        if (localNode.equals(remoteNode)) {
+            throw new RuntimeException("Identities must not be the same");
+        }
+
+        BigInteger curvePrime = ec.getField().getCharacteristic();
+        BigInteger curveOrder = ec.getOrder();
+
+        SecureRandom rng = getRandomGenerator();
+        MessageDigest hash = getHashFunction();
+
+        ECPoint pwe = null;
+        int i;
+        int limit = 100000;
+        for(i = 1; i <= limit && (pwe == null || pwe.isInfinity()); ++i) {
+            if (localNode.compareTo(remoteNode) > 0) {
+                hash.update(localNode.toString().getBytes(StandardCharsets.UTF_8));
+                hash.update(remoteNode.toString().getBytes(StandardCharsets.UTF_8));
+            } else {
+                hash.update(remoteNode.toString().getBytes(StandardCharsets.UTF_8));
+                hash.update(localNode.toString().getBytes(StandardCharsets.UTF_8));
+            }
+            hash.update(mpDerivative);
+            hash.update(Integer.toString(i).getBytes());
+            byte[] pwdSeed = hash.digest();
+
+            SecretKey key = generateSAEKey(pwdSeed);
+            BigInteger x = new BigInteger(key.getEncoded()).mod(curvePrime);
+
+            boolean flipSign = new BigInteger(pwdSeed).mod(BigInteger.TWO).equals(BigInteger.ONE);
+            pwe = findPointForX(x, flipSign);
+        }
+
+        if (i > limit) {
+            throw new RuntimeException("Could not calculate fitting curve point in "+limit+" cycles");
+        } else {
+            LOGGER.debug("Found valid password element after "+i+" iterations");
+        }
+
+        BigInteger rand = new BigInteger(curveOrder.bitLength(), rng);
+        BigInteger mask = new BigInteger(curveOrder.bitLength(), rng);
+
+        BigInteger scalar = rand.add(mask).mod(curveOrder);
+        ECPoint element = pwe.multiply(mask).negate();
+        SAEParameterSpec saeParameters = new SAEParameterSpec(scalar, element.getEncoded(false));
+
+        return new SAESession(saeParameters, rand, pwe);
+    }
+
+    public byte[] generateSAEToken(SAESession session, SAEParameterSpec remoteParameters) {
+        ECPoint localElem = ec.decodePoint(session.getParameters().getElem());
+        BigInteger localScalar = session.getParameters().getScalar();
+        ECPoint remoteElem = ec.decodePoint(remoteParameters.getElem());
+        BigInteger remoteScalar = remoteParameters.getScalar();
+        ECPoint pwe = session.getPwe();
+        BigInteger rand = session.getRand();
+
+        ECPoint secretElem = pwe.multiply(remoteScalar).add(remoteElem).multiply(rand);
+        BigInteger sharedKey = bijectiveFunction(secretElem);
+        session.setSharedKey(sharedKey);
+
+        MessageDigest hashFunction = getHashFunction();
+        hashFunction.update(sharedKey.toByteArray());
+        hashFunction.update(bijectiveFunction(localElem).toByteArray());
+        hashFunction.update(localScalar.toByteArray());
+        hashFunction.update(bijectiveFunction(remoteElem).toByteArray());
+        hashFunction.update(remoteScalar.toByteArray());
+
+        return hashFunction.digest();
+    }
+
+    /**
+     * Complete an SAE protocol session by validating a participating node's token, resulting in the generated
+     * secret (encryption key) if successfull.
+     * @param session the session parameters generated from calling
+     *          {@link SecurityController#initiateSaeSession(UUID, UUID)}.
+     * @param remoteToken the participating remote node's token.
+     * @param remoteParameters the participating remote node's parameters.
+     * @return if the validation is successful the result is the secret key shared between this node and the
+     *          participating node. If the validation fails the result is null.
+     */
+    public byte[] validateSAEToken(SAESession session, byte[] remoteToken, SAEParameterSpec remoteParameters) {
+        ECPoint localElem = ec.decodePoint(session.getParameters().getElem());
+        BigInteger localScalar = session.getParameters().getScalar();
+        ECPoint remoteElem = ec.decodePoint(remoteParameters.getElem());
+        BigInteger remoteScalar = remoteParameters.getScalar();
+        BigInteger sharedKey = session.getSharedKey();
+
+        MessageDigest hashFunction = getHashFunction();
+        hashFunction.update(sharedKey.toByteArray());
+        hashFunction.update(bijectiveFunction(remoteElem).toByteArray());
+        hashFunction.update(remoteScalar.toByteArray());
+        hashFunction.update(bijectiveFunction(localElem).toByteArray());
+        hashFunction.update(localScalar.toByteArray());
+        byte[] remoteVerificationToken = hashFunction.digest();
+
+        if (!Arrays.equals(remoteToken, remoteVerificationToken)) {
+            return null;
+        }
+
+        hashFunction.update(sharedKey.toByteArray());
+        hashFunction.update(bijectiveFunction(localElem.add(remoteElem)).toByteArray());
+        hashFunction.update(localScalar.add(remoteScalar).mod(ec.getOrder()).toByteArray());
+        return hashFunction.digest();
+    }
+
+    private BigInteger bijectiveFunction(ECPoint p) {
+        byte[] encoded = p.getEncoded(false);
+        // first byte of encoded point is a flag, so it's ignored
+        return new BigInteger(encoded, 1, encoded.length - 1);
+    }
+
     private byte[] encryptFragment(byte[] data) throws Exception {
         Cipher cipher = getCipherEngine();
         SecretKey key = getEncryptionKey();
@@ -228,7 +355,7 @@ public class SecurityController {
         return cipher.doFinal(encryptedData);
     }
 
-    private MessageDigest getShortHashFunction() {
+    private MessageDigest getHashFunction() {
         try {
             return MessageDigest.getInstance(HASH_SCHEME_SHORT, "BC");
         } catch (NoSuchAlgorithmException e) {
@@ -253,6 +380,45 @@ public class SecurityController {
             throw new IllegalStateException("Invalid KDF algorithm provider ["+e.getMessage()+"]");
         } catch (InvalidKeySpecException e) {
             throw new IllegalStateException("Invalid KDF spec ["+e.getMessage()+"]");
+        }
+    }
+
+    private SecretKey generateSAEKey(byte[] pwdSeed) {
+        try {
+            SecretKeyFactory kdf = SecretKeyFactory.getInstance(KDF_SCHEME, "BC");
+            KeySpec keySpec = new PBEKeySpec(
+                    new String(pwdSeed, StandardCharsets.UTF_8).toCharArray(),
+                    new byte[]{0x00},
+                    KDF_ITERATIONS,
+                    ec.getField().getCharacteristic().bitLength());     // big-length of curve's prime field
+            return kdf.generateSecret(keySpec);
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("Invalid SAE KDF algorithm ["+e.getMessage()+"]");
+        } catch (NoSuchProviderException e) {
+            throw new IllegalStateException("Invalid SAE KDF algorithm provider ["+e.getMessage()+"]");
+        } catch (InvalidKeySpecException e) {
+            throw new IllegalStateException("Invalid SAE KDF spec ["+e.getMessage()+"]");
+        }
+    }
+
+    private ECPoint findPointForX(BigInteger xCoordinate, boolean flipSign) {
+        ECFieldElement xField = ec.fromBigInteger(xCoordinate);
+        // find Y by elliptic curve equation y^2=x^3+ax+b
+        ECFieldElement yField = xField.multiply(xField).multiply(xField)
+                .add(ec.getA().multiply(xField))
+                .add(ec.getB())
+                .sqrt();
+
+        if (yField == null) {
+            return null;
+        }
+
+        try {
+            return flipSign ? ec.validatePoint(xField.toBigInteger(), yField.negate().toBigInteger())
+                    : ec.validatePoint(xField.toBigInteger(), yField.toBigInteger());
+        } catch (IllegalArgumentException e) {
+            //point was invalid
+            return null;
         }
     }
 

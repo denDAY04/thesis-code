@@ -1,6 +1,9 @@
 package edu.dk.asj.dpm.network;
 
 import edu.dk.asj.dpm.network.packets.Packet;
+import edu.dk.asj.dpm.security.SAEParameterSpec;
+import edu.dk.asj.dpm.security.SAESession;
+import edu.dk.asj.dpm.security.SecurityController;
 import edu.dk.asj.dpm.util.BufferHelper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -10,6 +13,7 @@ import java.net.SocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.AsynchronousSocketChannel;
 import java.util.Objects;
+import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -24,6 +28,7 @@ public class ClientConnection extends Thread implements AutoCloseable {
     private static final long TIMEOUT = 5L;
 
     private final SocketAddress destination;
+    private final UUID nodeId;
     private Packet request;
     private AsynchronousSocketChannel connection;
 
@@ -33,27 +38,11 @@ public class ClientConnection extends Thread implements AutoCloseable {
     private boolean finished;
 
 
-    private ClientConnection(SocketAddress destination, Packet request, boolean requireResponse) {
+    private ClientConnection(SocketAddress destination, UUID nodeId) {
         super("connection" + destination.toString());
         this.destination = destination;
-        this.request = request;
-        this.requireResponse = requireResponse;
-    }
-
-    /**
-     * Prepare a client connection in a separate thread and start the thread, which opens the connection.
-     * @param request the packet that the connection should send.
-     * @param destination the destination to which the packet should be sent.
-     * @param requireResponse flag indicating whether the connection must wait for a response.
-     * @return the initialized and started connection.
-     */
-    public static ClientConnection send(Packet request, SocketAddress destination, boolean requireResponse) {
-        Objects.requireNonNull(destination, "Destination must not be null");
-        Objects.requireNonNull(request, "Request must not be null");
-
-        ClientConnection connection = new ClientConnection(destination, request, requireResponse);
-        connection.start();
-        return connection;
+        this.requireResponse = true;
+        this.nodeId = nodeId;
     }
 
     /**
@@ -61,11 +50,12 @@ public class ClientConnection extends Thread implements AutoCloseable {
      * you must first set the connection's request using {@link ClientConnection#setRequest(Packet,boolean)} and then
      * start the connection using {@link ClientConnection#start()}.
      * @param destination the destination of the connection.
+     * @param nodeId the identity of this node.
      * @return the initialized (but not started) connection.
      */
-    public static ClientConnection prepare(SocketAddress destination) {
+    public static ClientConnection prepare(SocketAddress destination, UUID nodeId) {
         Objects.requireNonNull(destination, "Destination must not be null");
-        return new ClientConnection(destination, null, true);
+        return new ClientConnection(destination, nodeId);
     }
 
     @Override
@@ -78,8 +68,7 @@ public class ClientConnection extends Thread implements AutoCloseable {
     }
 
     /**
-     * Set the request to be sent with the connection. This method should only be used on a connection that was
-     * initialized using {@link ClientConnection#prepare(SocketAddress)}.
+     * Set the request to be sent with the connection.
      * @param request the request packet to be sent to the connection destination.
      * @param requireResponse flag for whether the connection should wait for a response to the request.
      */
@@ -125,7 +114,13 @@ public class ClientConnection extends Thread implements AutoCloseable {
             return;
         }
 
-        // TODO authenticate connection
+        byte[] encryptionKey = saeHandshake();
+        if (encryptionKey == null) {
+            LOGGER.warn("SAE authentication handshake failed");
+            error = "Could not authenticate connection";
+            close();
+            return;
+        }
 
         if (!sendRequest()) {
             cleanUp();
@@ -234,5 +229,28 @@ public class ClientConnection extends Thread implements AutoCloseable {
                 error = "Clean-up failed";
             }
         }
+    }
+
+    private byte[] saeHandshake() {
+        // TODO
+
+        // send local nodeId
+        // receive remote nodeId
+
+        UUID remoteId = null;
+        SAESession session = SecurityController.getInstance().initiateSaeSession(nodeId, remoteId);
+
+
+        // send local parameters
+        // receive remote parameters
+
+        SAEParameterSpec remoteParameters = null;
+        byte[] localToken = SecurityController.getInstance().generateSAEToken(session, remoteParameters);
+
+        // send local token
+        // get remote token
+
+        byte[] remoteToken = null;
+        return SecurityController.getInstance().validateSAEToken(session, remoteToken, remoteParameters);
     }
 }

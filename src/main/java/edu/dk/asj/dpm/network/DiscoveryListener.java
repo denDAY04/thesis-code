@@ -3,6 +3,7 @@ package edu.dk.asj.dpm.network;
 import edu.dk.asj.dpm.network.packets.DiscoveryEchoPacket;
 import edu.dk.asj.dpm.network.packets.DiscoveryPacket;
 import edu.dk.asj.dpm.network.packets.Packet;
+import edu.dk.asj.dpm.properties.NetworkProperties;
 import edu.dk.asj.dpm.util.BufferHelper;
 import edu.dk.asj.dpm.util.NetworkInterfaceHelper;
 import org.slf4j.Logger;
@@ -19,6 +20,7 @@ import java.net.StandardSocketOptions;
 import java.nio.ByteBuffer;
 import java.nio.channels.DatagramChannel;
 import java.util.Objects;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentLinkedDeque;
 
 public class DiscoveryListener extends Thread implements AutoCloseable {
@@ -37,6 +39,7 @@ public class DiscoveryListener extends Thread implements AutoCloseable {
     private final ByteBuffer discoveryBuffer;
     private final DiscoveryHandler packetHandler;
     private final BigInteger networkId;
+    private final UUID nodeId;
 
     private boolean isListening;
     private boolean closed;
@@ -44,10 +47,11 @@ public class DiscoveryListener extends Thread implements AutoCloseable {
     private boolean isDiscovering;
     private ConcurrentLinkedDeque<ClientConnection> discoveredNodes;
 
-    private DiscoveryListener(DiscoveryHandler packetHandler, BigInteger networkId) {
+    private DiscoveryListener(DiscoveryHandler packetHandler, BigInteger networkId, UUID nodeId) {
         super("discovery-listener");
         this.packetHandler = packetHandler;
         this.networkId = networkId;
+        this.nodeId = nodeId;
         discoveryBuffer = ByteBuffer.allocate(BUFFER_CAPACITY);
         isListening = false;
         closed = false;
@@ -65,17 +69,16 @@ public class DiscoveryListener extends Thread implements AutoCloseable {
      * network, but it will not listen for discovery requests before {@link DiscoveryListener#startListening()} is
      * called.
      * @param handler the object that should handle discovery requests.
-     * @param networkId the ID of this node's network. The listener will filter out discovery requests that are not
-     *                  addressed to this network ID.
+     * @param properties this node's network properties.
      * @return the listener.
      */
-    public static DiscoveryListener open(DiscoveryHandler handler, BigInteger networkId) {
+    public static DiscoveryListener open(DiscoveryHandler handler, NetworkProperties properties) {
         Objects.requireNonNull(handler, "Handler may not be null");
-        Objects.requireNonNull(networkId, "Network ID must not be null");
+        Objects.requireNonNull(properties, "Network properties must not be null");
 
-        DiscoveryListener listener = new DiscoveryListener(handler, networkId);
+        DiscoveryListener listener = new DiscoveryListener(handler, properties.getNetworkId(), properties.getNodeId());
         listener.start();
-        LOGGER.debug("Started node discovery listener for network ID {}", networkId);
+        LOGGER.debug("Started node discovery listener for network ID {}", properties.getNetworkId());
         return listener;
     }
 
@@ -228,7 +231,7 @@ public class DiscoveryListener extends Thread implements AutoCloseable {
                             ((InetSocketAddress) sender).getAddress(),
                             ((DiscoveryEchoPacket) response).getConnectionPort());
                     LOGGER.debug("Discovered node connection {}", discoveredNodeAddress);
-                    discoveredNodes.offer(ClientConnection.prepare(discoveredNodeAddress));
+                    discoveredNodes.offer(ClientConnection.prepare(discoveredNodeAddress, nodeId));
                 } else {
                     LOGGER.warn("Unexpected discovery response {}", response);
                 }

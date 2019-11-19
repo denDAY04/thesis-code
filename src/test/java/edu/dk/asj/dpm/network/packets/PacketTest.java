@@ -1,5 +1,6 @@
 package edu.dk.asj.dpm.network.packets;
 
+import edu.dk.asj.dpm.security.SAEParameterSpec;
 import edu.dk.asj.dpm.vault.VaultFragment;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -70,7 +71,7 @@ class PacketTest {
     @Test
     @DisplayName("SAEParameterPacket I/O")
     void SAEParameterPacketIO() {
-        SAEParameterPacket saeParamPacket = new SAEParameterPacket(BigInteger.ONE, BigInteger.ZERO, BigInteger.TEN);
+        SAEParameterPacket saeParamPacket = new SAEParameterPacket(new SAEParameterSpec(BigInteger.ONE, new byte[]{0x00}));
         byte[] data = saeParamPacket.serialize();
         assertNotNull(data, "Data array is null");
 

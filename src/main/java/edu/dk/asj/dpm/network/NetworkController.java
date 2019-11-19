@@ -33,7 +33,7 @@ public class NetworkController implements DiscoveryHandler, PacketHandler, AutoC
     public NetworkController(NetworkProperties properties, PropertiesContainer propertiesContainer) {
         networkId = properties.getNetworkId();
         this.propertiesContainer = propertiesContainer;
-        discoveryListener = DiscoveryListener.open(this, networkId);
+        discoveryListener = DiscoveryListener.open(this, properties);
     }
 
     /**
