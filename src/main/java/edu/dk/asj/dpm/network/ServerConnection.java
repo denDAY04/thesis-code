@@ -249,6 +249,8 @@ public class ServerConnection extends Thread implements AutoCloseable {
 
         if (receivedBytes < 1) {
             return null;
+        } else {
+            LOGGER.debug("Received SAE identity");
         }
 
         Packet request = Packet.deserialize(BufferHelper.readAndClear(idBuffer));
@@ -272,6 +274,8 @@ public class ServerConnection extends Thread implements AutoCloseable {
 
         if (sentBytes < 1){
             return null;
+        } else {
+            LOGGER.debug("Sent SAE identity");
         }
 
         return ((IdentityPacket) request).getNodeId();
@@ -293,6 +297,8 @@ public class ServerConnection extends Thread implements AutoCloseable {
 
         if (receivedBytes < 1) {
             return null;
+        } else {
+            LOGGER.debug("Received SAE parameters");
         }
 
         Packet parameterRequest = Packet.deserialize(BufferHelper.readAndClear(parameterBuffer));
@@ -316,6 +322,8 @@ public class ServerConnection extends Thread implements AutoCloseable {
 
         if (sentBytes < 1) {
             return null;
+        } else {
+            LOGGER.debug("Sent SAE parameters");
         }
 
         return ((SAEParameterPacket) parameterRequest).getParameters();
@@ -337,6 +345,8 @@ public class ServerConnection extends Thread implements AutoCloseable {
 
         if (receivedBytes < 1) {
             return null;
+        } else {
+            LOGGER.debug("Received SAE token");
         }
 
         Packet tokenRequest = Packet.deserialize(BufferHelper.readAndClear(tokenBuffer));
@@ -360,6 +370,8 @@ public class ServerConnection extends Thread implements AutoCloseable {
 
         if (sentBytes < 1) {
             return null;
+        } else {
+            LOGGER.debug("Sent SAE token");
         }
 
         return ((SAETokenPacket) tokenRequest).getToken();

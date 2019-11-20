@@ -218,11 +218,9 @@ public class NetworkController implements DiscoveryHandler, PacketHandler, AutoC
     }
 
     private ClientConnection getFinishedConnection(Deque<ClientConnection> connections) {
-        LOGGER.debug("Getting net finished connection");
         ClientConnection peek = connections.peek();
         while (!Objects.requireNonNull(peek).isFinished()) {
             try {
-                LOGGER.debug("Waiting...");
                 Thread.sleep(IDLE_MS);
             } catch (InterruptedException e) {
                 // do nothing

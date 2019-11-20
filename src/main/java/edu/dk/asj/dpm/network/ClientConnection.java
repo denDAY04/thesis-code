@@ -274,6 +274,8 @@ public class ClientConnection extends Thread implements AutoCloseable {
 
         if (sentBytes < 1){
             return null;
+        } else {
+            LOGGER.debug("Sent SAE identity");
         }
 
         ByteBuffer idBuffer = ByteBuffer.allocate(SAE_BUFFER_CAPACITY);
@@ -291,6 +293,8 @@ public class ClientConnection extends Thread implements AutoCloseable {
 
         if (receivedBytes < 1) {
             return null;
+        } else {
+            LOGGER.debug("Received SAE identity");
         }
 
         Packet response = Packet.deserialize(BufferHelper.readAndClear(idBuffer));
@@ -317,6 +321,8 @@ public class ClientConnection extends Thread implements AutoCloseable {
 
         if (sentBytes < 1) {
             return null;
+        } else {
+            LOGGER.debug("Sent SAE parameters");
         }
 
         ByteBuffer parameterBuffer = ByteBuffer.allocate(SAE_BUFFER_CAPACITY);
@@ -334,6 +340,8 @@ public class ClientConnection extends Thread implements AutoCloseable {
 
         if (receivedBytes < 1) {
             return null;
+        } else {
+            LOGGER.debug("Received SAE parameters");
         }
 
         Packet response = Packet.deserialize(BufferHelper.readAndClear(parameterBuffer));
@@ -360,6 +368,8 @@ public class ClientConnection extends Thread implements AutoCloseable {
 
         if (sentBytes < 1) {
             return null;
+        } else {
+            LOGGER.debug("Sent SAE token");
         }
 
         ByteBuffer tokenBuffer = ByteBuffer.allocate(SAE_BUFFER_CAPACITY);
@@ -377,6 +387,8 @@ public class ClientConnection extends Thread implements AutoCloseable {
 
         if (receivedBytes < 1) {
             return null;
+        } else {
+            LOGGER.debug("Received SAE token");
         }
 
         Packet response = Packet.deserialize(BufferHelper.readAndClear(tokenBuffer));
