@@ -323,14 +323,14 @@ public class SecurityController {
     }
 
     /**
-     * Derive a secret key (for cipher encryption) from a byte array using a KDF scheme.
-     * @param key the input key to derive a new key from.
+     * Derive a secret key (for cipher encryption) from the base key such that the secret key <i>k = KDF(baseKey)</i>
+     * @param baseKey the input key to derive a new key from.
      * @return the newly derived secret key.
      */
-    public SecretKey deriveSecretKey(byte[] key) {
+    public SecretKey deriveSecretKey(byte[] baseKey) {
         try {
             SecretKeyFactory kdf = SecretKeyFactory.getInstance(KDF_SCHEME, "BC");
-            PBEKeySpec keySpec = new PBEKeySpec(new String(key, StandardCharsets.UTF_8).toCharArray(),
+            PBEKeySpec keySpec = new PBEKeySpec(new String(baseKey, StandardCharsets.UTF_8).toCharArray(),
                     new byte[]{0x00},
                     KDF_ITERATIONS,
                     KDF_LENGTH);
@@ -345,6 +345,14 @@ public class SecurityController {
         }
     }
 
+    /**
+     * Encrypt the clear-text using a secret key derived from the base key.
+     * @param clearText the data to be encrypted.
+     * @param baseKey the key to use as input for a key derivation function such that the encryption key
+     *                <i>k = KDF(baseKey)</i>
+     * @return the resulting cipher-text.
+     * @throws Exception if an error was raised.
+     */
     public byte[] encrypt(byte[] clearText, byte[] baseKey) throws Exception {
         Cipher cipher = getCipherEngine();
         SecretKey key = deriveSecretKey(baseKey);
@@ -363,6 +371,14 @@ public class SecurityController {
         return fullData;
     }
 
+    /**
+     * Decrypt the cipher-text using a secret key derived from the base key.
+     * @param cipherText the data to be decrypted.
+     * @param baseKey the key to use as input for a key derivation function such that the encryption key
+     *                <i>k = KDF(baseKey)</i>
+     * @return the resulting clear-text.
+     * @throws Exception if an error was raised.
+     */
     public byte[] decrypt(byte[] cipherText, byte[] baseKey) throws Exception {
         Cipher cipher = getCipherEngine();
         SecretKey key = deriveSecretKey(baseKey);

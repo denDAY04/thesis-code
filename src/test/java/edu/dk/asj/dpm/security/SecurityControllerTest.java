@@ -8,14 +8,20 @@ import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
 
+import javax.crypto.AEADBadTagException;
+import javax.crypto.SecretKey;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.Arrays;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertAll;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -83,7 +89,7 @@ class SecurityControllerTest {
     }
 
     @Test
-    @DisplayName("Generate SAE parameters")
+    @DisplayName("Initiate SAE session")
     void generateSAEParams() {
         SecurityController controller = SecurityController.getInstance();
         String password = "12345";
@@ -100,4 +106,42 @@ class SecurityControllerTest {
                 () -> assertNotNull(session.getParameters().getScalar(), "Scalar parameters is null"),
                 () -> assertNotNull(session.getParameters().getElem(), "Elem parameter is null"));
     }
+
+    @Test
+    @DisplayName("Generate key with KDF")
+    void deriveSecretKey() {
+        byte[] baseKey = new byte[]{0x00, 0x18};
+        SecretKey key = SecurityController.getInstance().deriveSecretKey(baseKey);
+        assertNotNull(key, "The derived key is null");
+        assertFalse(Arrays.equals(baseKey, key.getEncoded()), "Derived key must not be the same as the base key");
+    }
+
+    @Test
+    @DisplayName("Encryption/Decryption")
+    void encryptDecrypt() throws Exception {
+        byte[] data = "Hello, world!".getBytes(StandardCharsets.UTF_8);
+        byte[] baseKey = "123".getBytes(StandardCharsets.UTF_8);
+
+        byte[] cipherText = SecurityController.getInstance().encrypt(data, baseKey);
+        assertNotNull(cipherText, "Cipher-text is null");
+        assertFalse(Arrays.equals(data, cipherText), "Original data and cipher-text is the same");
+
+        byte[] clearText = SecurityController.getInstance().decrypt(cipherText, baseKey);
+        assertNotNull(clearText, "Clear-text is null");
+        assertArrayEquals(data, clearText, "Original data and clear-text is not the same");
+    }
+
+    @Test
+    @DisplayName("Encryption/Decryption fails for different base key")
+    void encryptDecryptFail() throws Exception {
+        byte[] data = "Hello, world!".getBytes(StandardCharsets.UTF_8);
+        byte[] baseKey = "123".getBytes(StandardCharsets.UTF_8);
+        byte[] otherKey = "1234".getBytes(StandardCharsets.UTF_8);
+
+        byte[] cipherText = SecurityController.getInstance().encrypt(data, baseKey);
+        assertThrows(AEADBadTagException.class,
+                () -> SecurityController.getInstance().decrypt(cipherText, otherKey),
+                "Decryption with bad key did not trigger failed MAC check");
+    }
+
 }
