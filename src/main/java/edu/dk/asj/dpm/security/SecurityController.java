@@ -166,7 +166,7 @@ public class SecurityController {
 
         StandardOpenOption[] fileOptions = new StandardOpenOption[] { READ };
         try (InputStream fileStream = Files.newInputStream(Paths.get(storagePath), fileOptions)){
-            byte[] data = decryptFragment(fileStream.readAllBytes());
+            byte[] data = decrypt(fileStream.readAllBytes(), mpDerivative);
             VaultFragment fragment;
             try (ByteArrayInputStream byteStream = new ByteArrayInputStream(data);
                  ObjectInputStream objectStream = new ObjectInputStream(byteStream)) {
@@ -195,7 +195,7 @@ public class SecurityController {
 
             objectStream.writeObject(fragment);
             byte[] serializedFragment = byteStream.toByteArray();
-            fileStream.write(encryptFragment(serializedFragment));
+            fileStream.write(encrypt(serializedFragment, mpDerivative));
             return true;
         } catch (Exception e) {
             LOGGER.error("Could not write to fragment file", e);
@@ -259,6 +259,12 @@ public class SecurityController {
         return new SAESession(saeParameters, rand, pwe);
     }
 
+    /**
+     * Compute the local node's SAE verification token using the SAE session and the participating node's parameters.
+     * @param session the current SAE session.
+     * @param remoteParameters the SAE parameters of the remote participating node.
+     * @return the verification token.
+     */
     public byte[] generateSAEToken(SAESession session, SAEParameterSpec remoteParameters) {
         ECPoint localElem = ec.decodePoint(session.getParameters().getElem());
         BigInteger localScalar = session.getParameters().getScalar();
@@ -316,59 +322,15 @@ public class SecurityController {
         return hashFunction.digest();
     }
 
-    private BigInteger bijectiveFunction(ECPoint p) {
-        byte[] encoded = p.getEncoded(false);
-        // first byte of encoded point is a flag, so it's ignored
-        return new BigInteger(encoded, 1, encoded.length - 1);
-    }
-
-    private byte[] encryptFragment(byte[] data) throws Exception {
-        Cipher cipher = getCipherEngine();
-        SecretKey key = getEncryptionKey();
-
-        byte[] iv = new byte[IV_LENGTH];
-        getRandomGenerator().nextBytes(iv);
-        IvParameterSpec cipherParams = new IvParameterSpec(iv);
-
-        cipher.init(Cipher.ENCRYPT_MODE, key, cipherParams);
-        cipher.updateAAD(iv);
-
-        byte[] encryptedBytes = cipher.doFinal(data);
-        byte[] fullData = new byte[IV_LENGTH + encryptedBytes.length];
-        System.arraycopy(iv, 0, fullData, 0, IV_LENGTH);
-        System.arraycopy(encryptedBytes, 0, fullData, IV_LENGTH, encryptedBytes.length);
-
-        return fullData;
-    }
-
-    private byte[] decryptFragment(byte[] data) throws Exception {
-        Cipher cipher = getCipherEngine();
-        SecretKey key = getEncryptionKey();
-
-        byte[] iv = Arrays.copyOfRange(data, 0, IV_LENGTH);
-        byte[] encryptedData = Arrays.copyOfRange(data, IV_LENGTH, data.length);
-        IvParameterSpec cipherParams = new IvParameterSpec(iv);
-
-        cipher.init(Cipher.DECRYPT_MODE, key, cipherParams);
-        cipher.updateAAD(iv);
-
-        return cipher.doFinal(encryptedData);
-    }
-
-    private MessageDigest getHashFunction() {
-        try {
-            return MessageDigest.getInstance(HASH_SCHEME_SHORT, "BC");
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("Invalid hash algorithm ["+e.getLocalizedMessage()+"]");
-        } catch (NoSuchProviderException e) {
-            throw new IllegalStateException("Invalid hash algorithm provider ["+e.getLocalizedMessage()+"]");
-        }
-    }
-
-    private SecretKey getEncryptionKey() {
+    /**
+     * Derive a secret key (for cipher encryption) from a byte array using a KDF scheme.
+     * @param key the input key to derive a new key from.
+     * @return the newly derived secret key.
+     */
+    public SecretKey deriveSecretKey(byte[] key) {
         try {
             SecretKeyFactory kdf = SecretKeyFactory.getInstance(KDF_SCHEME, "BC");
-            PBEKeySpec keySpec = new PBEKeySpec(new String(mpDerivative, StandardCharsets.UTF_8).toCharArray(),
+            PBEKeySpec keySpec = new PBEKeySpec(new String(key, StandardCharsets.UTF_8).toCharArray(),
                     new byte[]{0x00},
                     KDF_ITERATIONS,
                     KDF_LENGTH);
@@ -380,6 +342,53 @@ public class SecurityController {
             throw new IllegalStateException("Invalid KDF algorithm provider ["+e.getMessage()+"]");
         } catch (InvalidKeySpecException e) {
             throw new IllegalStateException("Invalid KDF spec ["+e.getMessage()+"]");
+        }
+    }
+
+    public byte[] encrypt(byte[] clearText, byte[] baseKey) throws Exception {
+        Cipher cipher = getCipherEngine();
+        SecretKey key = deriveSecretKey(baseKey);
+
+        byte[] iv = new byte[IV_LENGTH];
+        getRandomGenerator().nextBytes(iv);
+        IvParameterSpec cipherParams = new IvParameterSpec(iv);
+        cipher.init(Cipher.ENCRYPT_MODE, key, cipherParams);
+
+        byte[] cipherText = cipher.doFinal(clearText);
+
+        byte[] fullData = new byte[IV_LENGTH + cipherText.length];
+        System.arraycopy(iv, 0, fullData, 0, IV_LENGTH);
+        System.arraycopy(cipherText, 0, fullData, IV_LENGTH, cipherText.length);
+
+        return fullData;
+    }
+
+    public byte[] decrypt(byte[] cipherText, byte[] baseKey) throws Exception {
+        Cipher cipher = getCipherEngine();
+        SecretKey key = deriveSecretKey(baseKey);
+
+        byte[] iv = Arrays.copyOfRange(cipherText, 0, IV_LENGTH);
+        byte[] encryptedData = Arrays.copyOfRange(cipherText, IV_LENGTH, cipherText.length);
+
+        IvParameterSpec cipherParams = new IvParameterSpec(iv);
+        cipher.init(Cipher.DECRYPT_MODE, key, cipherParams);
+
+        return cipher.doFinal(encryptedData);
+    }
+
+    private BigInteger bijectiveFunction(ECPoint p) {
+        byte[] encoded = p.getEncoded(false);
+        // first byte of encoded point is a flag, so it's ignored
+        return new BigInteger(encoded, 1, encoded.length - 1);
+    }
+
+    private MessageDigest getHashFunction() {
+        try {
+            return MessageDigest.getInstance(HASH_SCHEME_SHORT, "BC");
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("Invalid hash algorithm ["+e.getLocalizedMessage()+"]");
+        } catch (NoSuchProviderException e) {
+            throw new IllegalStateException("Invalid hash algorithm provider ["+e.getLocalizedMessage()+"]");
         }
     }
 

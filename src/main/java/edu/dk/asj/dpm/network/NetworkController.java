@@ -1,10 +1,14 @@
 package edu.dk.asj.dpm.network;
 
+import edu.dk.asj.dpm.network.connections.ClientConnection;
+import edu.dk.asj.dpm.network.connections.ServerConnection;
 import edu.dk.asj.dpm.network.packets.DiscoveryEchoPacket;
+import edu.dk.asj.dpm.network.packets.DiscoveryHandler;
 import edu.dk.asj.dpm.network.packets.DiscoveryPacket;
 import edu.dk.asj.dpm.network.packets.FragmentPacket;
 import edu.dk.asj.dpm.network.packets.GetFragmentPacket;
 import edu.dk.asj.dpm.network.packets.Packet;
+import edu.dk.asj.dpm.network.packets.PacketHandler;
 import edu.dk.asj.dpm.properties.NetworkProperties;
 import edu.dk.asj.dpm.properties.PropertiesContainer;
 import edu.dk.asj.dpm.security.SecurityController;

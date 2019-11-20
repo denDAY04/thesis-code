@@ -1,6 +1,8 @@
 package edu.dk.asj.dpm.network;
 
+import edu.dk.asj.dpm.network.connections.ClientConnection;
 import edu.dk.asj.dpm.network.packets.DiscoveryEchoPacket;
+import edu.dk.asj.dpm.network.packets.DiscoveryHandler;
 import edu.dk.asj.dpm.network.packets.DiscoveryPacket;
 import edu.dk.asj.dpm.network.packets.Packet;
 import edu.dk.asj.dpm.properties.NetworkProperties;

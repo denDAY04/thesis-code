@@ -1,4 +1,4 @@
-package edu.dk.asj.dpm.network;
+package edu.dk.asj.dpm.network.packets;
 
 import edu.dk.asj.dpm.network.packets.DiscoveryEchoPacket;
 import edu.dk.asj.dpm.network.packets.DiscoveryPacket;
