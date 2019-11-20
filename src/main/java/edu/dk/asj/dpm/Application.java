@@ -45,18 +45,6 @@ public class Application {
         return vault;
     }
 
-    public NetworkController getNetworkController() {
-        return networkController;
-    }
-
-    public NetworkProperties getNetworkProperties() {
-        return networkProperties;
-    }
-
-    public PropertiesContainer getPropertiesContainer() {
-        return propertiesContainer;
-    }
-
     public SecurityController getSecurityController() {
         return securityController;
     }
@@ -204,6 +192,8 @@ public class Application {
     }
 
     private void initialiseFragment() {
+        ui.message("Initializing data...");
+
         String networkError = "Encountered a network error while initialising the vault";
         SecureVault temporaryVault;
         try {
