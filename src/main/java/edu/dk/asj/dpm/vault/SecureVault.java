@@ -157,20 +157,23 @@ public class SecureVault implements Serializable {
                 throw new IllegalStateException("Fragment list complete");
             }
 
-            if (buffer == null) {
-                finalVaultSize = fragment.getVaultSize();
-                buffer = ByteBuffer.allocate(finalVaultSize);
+            if (fragment != null) {
+                if (buffer == null) {
+                    finalVaultSize = fragment.getVaultSize();
+                    buffer = ByteBuffer.allocate(finalVaultSize);
+                }
+
+                if (finalVaultSize != fragment.getVaultSize()) {
+                    throw new IllegalArgumentException("Fragment reports unexpected total vault byte-size");
+                }
+
+                for (int i = 0; i < fragment.getMask().length; ++i, ++byteCounter) {
+                    int maskIndex = fragment.getMask()[i];
+                    byte dataByte = fragment.getFragment()[i];
+                    buffer.put(maskIndex, dataByte);
+                }
             }
 
-            if (finalVaultSize != fragment.getVaultSize()) {
-                throw new IllegalArgumentException("Fragment reports unexpected total vault byte-size");
-            }
-
-            for (int i = 0; i < fragment.getMask().length; ++i, ++byteCounter) {
-                int maskIndex = fragment.getMask()[i];
-                byte dataByte = fragment.getFragment()[i];
-                buffer.put(maskIndex, dataByte);
-            }
             return this;
         }
 
