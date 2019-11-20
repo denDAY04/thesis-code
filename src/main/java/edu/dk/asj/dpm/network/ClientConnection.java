@@ -11,7 +11,6 @@ import edu.dk.asj.dpm.util.BufferHelper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.security.auth.login.LoginContext;
 import java.io.IOException;
 import java.net.SocketAddress;
 import java.nio.ByteBuffer;
@@ -30,7 +29,7 @@ public class ClientConnection extends Thread implements AutoCloseable {
     private static final Logger LOGGER = LoggerFactory.getLogger(ClientConnection.class);
     private static final int BUFFER_CAPACITY = 10 * 1000 * 1000;
     private static final long TIMEOUT_SEC = 1L;
-    private static final long SAE_HANDSHAKE_TIMEOUT_MS = 100;
+    private static final long SAE_HANDSHAKE_TIMEOUT_MS = 5000;
     private static final int SAE_BUFFER_CAPACITY = 1000;
 
     private final SocketAddress destination;
@@ -263,6 +262,7 @@ public class ClientConnection extends Thread implements AutoCloseable {
         Future<Integer> sendIdPromise = connection.write(ByteBuffer.wrap(identityRequest.serialize()));
         int sentBytes = -1;
         try {
+            LOGGER.debug("Sending SAE identity");
             sentBytes = sendIdPromise.get(SAE_HANDSHAKE_TIMEOUT_MS, TimeUnit.MILLISECONDS);
         } catch (InterruptedException e) {
             LOGGER.warn("Interrupted while sending SAE identity");
@@ -282,6 +282,7 @@ public class ClientConnection extends Thread implements AutoCloseable {
         Future<Integer> receiveIdPromise = connection.read(idBuffer);
         int receivedBytes = -1;
         try {
+            LOGGER.debug("Receiving SAE identity");
             receivedBytes =  receiveIdPromise.get(SAE_HANDSHAKE_TIMEOUT_MS, TimeUnit.MILLISECONDS);
         } catch (InterruptedException e) {
             LOGGER.warn("Interrupted while receiving SAE identity");
@@ -310,6 +311,7 @@ public class ClientConnection extends Thread implements AutoCloseable {
         Future<Integer> sendParamPromise = connection.write(ByteBuffer.wrap(request.serialize()));
         int sentBytes = -1;
         try {
+            LOGGER.debug("Sending SAE parameters");
             sentBytes = sendParamPromise.get(SAE_HANDSHAKE_TIMEOUT_MS, TimeUnit.MILLISECONDS);
         } catch (InterruptedException e) {
             LOGGER.warn("Interrupted while sending SAE parameters");
@@ -329,6 +331,7 @@ public class ClientConnection extends Thread implements AutoCloseable {
         Future<Integer> receiveParamPromise = connection.read(parameterBuffer);
         int receivedBytes = -1;
         try {
+            LOGGER.debug("Receiving SAE parameters");
             receivedBytes = receiveParamPromise.get(SAE_HANDSHAKE_TIMEOUT_MS, TimeUnit.MILLISECONDS);
         } catch (InterruptedException e) {
             LOGGER.warn("Interrupted while receiving SAE parameters");
@@ -357,6 +360,7 @@ public class ClientConnection extends Thread implements AutoCloseable {
         Future<Integer> sendTokenPromise = connection.write(ByteBuffer.wrap(request.serialize()));
         int sentBytes = -1;
         try {
+            LOGGER.debug("Sending SAE token");
             sentBytes = sendTokenPromise.get(SAE_HANDSHAKE_TIMEOUT_MS, TimeUnit.MILLISECONDS);
         } catch (InterruptedException e) {
             LOGGER.warn("Interrupted while sending SAE token");
@@ -376,6 +380,7 @@ public class ClientConnection extends Thread implements AutoCloseable {
         Future<Integer> receiveTokenPromise = connection.read(tokenBuffer);
         int receivedBytes = -1;
         try {
+            LOGGER.debug("Receiving SAE token");
             receivedBytes = receiveTokenPromise.get(SAE_HANDSHAKE_TIMEOUT_MS, TimeUnit.MILLISECONDS);
         } catch (InterruptedException e) {
             LOGGER.warn("Interrupted while receiving SAE token");
