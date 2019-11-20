@@ -1,6 +1,9 @@
 package edu.dk.asj.dpm.network;
 
+import edu.dk.asj.dpm.network.packets.IdentityPacket;
 import edu.dk.asj.dpm.network.packets.Packet;
+import edu.dk.asj.dpm.network.packets.SAEParameterPacket;
+import edu.dk.asj.dpm.network.packets.SAETokenPacket;
 import edu.dk.asj.dpm.security.SAEParameterSpec;
 import edu.dk.asj.dpm.security.SAESession;
 import edu.dk.asj.dpm.security.SecurityController;
@@ -8,6 +11,7 @@ import edu.dk.asj.dpm.util.BufferHelper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.security.auth.login.LoginContext;
 import java.io.IOException;
 import java.net.SocketAddress;
 import java.nio.ByteBuffer;
@@ -25,7 +29,9 @@ import java.util.concurrent.TimeoutException;
 public class ClientConnection extends Thread implements AutoCloseable {
     private static final Logger LOGGER = LoggerFactory.getLogger(ClientConnection.class);
     private static final int BUFFER_CAPACITY = 10 * 1000 * 1000;
-    private static final long TIMEOUT = 5L;
+    private static final long TIMEOUT_SEC = 1L;
+    private static final long SAE_HANDSHAKE_TIMEOUT_MS = 100;
+    private static final int SAE_BUFFER_CAPACITY = 1000;
 
     private final SocketAddress destination;
     private final UUID nodeId;
@@ -116,11 +122,14 @@ public class ClientConnection extends Thread implements AutoCloseable {
 
         byte[] encryptionKey = saeHandshake();
         if (encryptionKey == null) {
-            LOGGER.warn("SAE authentication handshake failed");
+            LOGGER.warn("SAE handshake failed");
             error = "Could not authenticate connection";
-            close();
+            cleanUp();
             return;
         }
+        LOGGER.debug("Established secure connection");
+
+        // todo ensure encryption on subsequent data
 
         if (!sendRequest()) {
             cleanUp();
@@ -151,7 +160,7 @@ public class ClientConnection extends Thread implements AutoCloseable {
         Future<Void> promise = connection.connect(destination);
 
         try {
-            promise.get(TIMEOUT, TimeUnit.SECONDS);
+            promise.get(TIMEOUT_SEC, TimeUnit.SECONDS);
             LOGGER.debug("Connected");
             return true;
 
@@ -176,7 +185,7 @@ public class ClientConnection extends Thread implements AutoCloseable {
         Future<Integer> sendPromise = connection.write(requestBuffer);
 
         try {
-            sendPromise.get(TIMEOUT, TimeUnit.SECONDS);
+            sendPromise.get(TIMEOUT_SEC, TimeUnit.SECONDS);
             LOGGER.debug("Request sent");
             return true;
 
@@ -201,7 +210,7 @@ public class ClientConnection extends Thread implements AutoCloseable {
         Future<Integer> receivePromise = connection.read(responseBuffer);
 
         try {
-            receivePromise.get(TIMEOUT, TimeUnit.SECONDS);
+            receivePromise.get(TIMEOUT_SEC, TimeUnit.SECONDS);
             LOGGER.debug("Received response");
             response = Packet.deserialize(BufferHelper.readAndClear(responseBuffer));
 
@@ -232,25 +241,149 @@ public class ClientConnection extends Thread implements AutoCloseable {
     }
 
     private byte[] saeHandshake() {
-        // TODO
+        LOGGER.debug("Initiating SAE handshake");
 
-        // send local nodeId
-        // receive remote nodeId
+        UUID remoteId = exchangeSAEIdentities();
+        if (remoteId != null) {
+            SAESession session = SecurityController.getInstance().initiateSaeSession(nodeId, remoteId);
+            SAEParameterSpec remoteParameters = exchangeSAEParameters(session.getParameters());
+            if (remoteParameters != null) {
+                byte[] token = SecurityController.getInstance().generateSAEToken(session, remoteParameters);
+                byte[] remoteToken = exchangeSAETokens(token);
+                if (remoteToken != null) {
+                    return SecurityController.getInstance().validateSAEToken(session, remoteToken, remoteParameters);
+                }
+            }
+        }
+        return  null;
+    }
 
-        UUID remoteId = null;
-        SAESession session = SecurityController.getInstance().initiateSaeSession(nodeId, remoteId);
+    private UUID exchangeSAEIdentities() {
+        Packet identityRequest = new IdentityPacket(nodeId);
+        Future<Integer> sendIdPromise = connection.write(ByteBuffer.wrap(identityRequest.serialize()));
+        int sentBytes = -1;
+        try {
+            sentBytes = sendIdPromise.get(SAE_HANDSHAKE_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+        } catch (InterruptedException e) {
+            LOGGER.warn("Interrupted while sending SAE identity");
+        } catch (ExecutionException e) {
+            LOGGER.warn("Unexpected exception while sending SAE identity", e);
+        } catch (TimeoutException e) {
+            LOGGER.warn("Timed out while sending SAE identity");
+        }
 
+        if (sentBytes < 1){
+            return null;
+        }
 
-        // send local parameters
-        // receive remote parameters
+        ByteBuffer idBuffer = ByteBuffer.allocate(SAE_BUFFER_CAPACITY);
+        Future<Integer> receiveIdPromise = connection.read(idBuffer);
+        int receivedBytes = -1;
+        try {
+            receivedBytes =  receiveIdPromise.get(SAE_HANDSHAKE_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+        } catch (InterruptedException e) {
+            LOGGER.warn("Interrupted while receiving SAE identity");
+        } catch (ExecutionException e) {
+            LOGGER.warn("Unexpected exception while receiving SAE identity", e);
+        } catch (TimeoutException e) {
+            LOGGER.warn("Timed out while receiving SAE identity");
+        }
 
-        SAEParameterSpec remoteParameters = null;
-        byte[] localToken = SecurityController.getInstance().generateSAEToken(session, remoteParameters);
+        if (receivedBytes < 1) {
+            return null;
+        }
 
-        // send local token
-        // get remote token
+        Packet response = Packet.deserialize(BufferHelper.readAndClear(idBuffer));
+        if (!(response instanceof IdentityPacket)) {
+            LOGGER.warn("Received invalid SAE identity");
+            return null;
+        }
+        return ((IdentityPacket) response).getNodeId();
+    }
 
-        byte[] remoteToken = null;
-        return SecurityController.getInstance().validateSAEToken(session, remoteToken, remoteParameters);
+    private SAEParameterSpec exchangeSAEParameters(SAEParameterSpec parameters) {
+        Packet request = new SAEParameterPacket(parameters);
+        Future<Integer> sendParamPromise = connection.write(ByteBuffer.wrap(request.serialize()));
+        int sentBytes = -1;
+        try {
+            sentBytes = sendParamPromise.get(SAE_HANDSHAKE_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+        } catch (InterruptedException e) {
+            LOGGER.warn("Interrupted while sending SAE parameters");
+        } catch (ExecutionException e) {
+            LOGGER.warn("Unexpected exception while sending SAE parameters", e);
+        } catch (TimeoutException e) {
+            LOGGER.warn("Timed out while sending SAE parameters");
+        }
+
+        if (sentBytes < 1) {
+            return null;
+        }
+
+        ByteBuffer parameterBuffer = ByteBuffer.allocate(SAE_BUFFER_CAPACITY);
+        Future<Integer> receiveParamPromise = connection.read(parameterBuffer);
+        int receivedBytes = -1;
+        try {
+            receivedBytes = receiveParamPromise.get(SAE_HANDSHAKE_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+        } catch (InterruptedException e) {
+            LOGGER.warn("Interrupted while receiving SAE parameters");
+        } catch (ExecutionException e) {
+            LOGGER.warn("Unexpected exception while receiving SAE parameters", e);
+        } catch (TimeoutException e) {
+            LOGGER.warn("Timed out while receiving SAE parameters");
+        }
+
+        if (receivedBytes < 1) {
+            return null;
+        }
+
+        Packet response = Packet.deserialize(BufferHelper.readAndClear(parameterBuffer));
+        if (!(response instanceof SAEParameterPacket)) {
+            LOGGER.warn("Received invalid SAE parameter response");
+            return null;
+        }
+        return ((SAEParameterPacket) response).getParameters();
+    }
+
+    private byte[] exchangeSAETokens(byte[] token) {
+        Packet request = new SAETokenPacket(token);
+        Future<Integer> sendTokenPromise = connection.write(ByteBuffer.wrap(request.serialize()));
+        int sentBytes = -1;
+        try {
+            sentBytes = sendTokenPromise.get(SAE_HANDSHAKE_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+        } catch (InterruptedException e) {
+            LOGGER.warn("Interrupted while sending SAE token");
+        } catch (ExecutionException e) {
+            LOGGER.warn("Unexpected exception while sending SAE token", e);
+        } catch (TimeoutException e) {
+            LOGGER.warn("Timed out while sending SAE token");
+        }
+
+        if (sentBytes < 1) {
+            return null;
+        }
+
+        ByteBuffer tokenBuffer = ByteBuffer.allocate(SAE_BUFFER_CAPACITY);
+        Future<Integer> receiveTokenPromise = connection.read(tokenBuffer);
+        int receivedBytes = -1;
+        try {
+            receivedBytes = receiveTokenPromise.get(SAE_HANDSHAKE_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+        } catch (InterruptedException e) {
+            LOGGER.warn("Interrupted while receiving SAE token");
+        } catch (ExecutionException e) {
+            LOGGER.warn("Unexpected exception while receiving SAE token", e);
+        } catch (TimeoutException e) {
+            LOGGER.warn("Timed out while receiving SAE token");
+        }
+
+        if (receivedBytes < 1) {
+            return null;
+        }
+
+        Packet response = Packet.deserialize(BufferHelper.readAndClear(tokenBuffer));
+        if (!(response instanceof SAETokenPacket)) {
+            LOGGER.warn("Received invalid SAE token response");
+            return null;
+        }
+        return ((SAETokenPacket) response).getToken();
     }
 }

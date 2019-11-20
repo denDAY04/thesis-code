@@ -20,6 +20,7 @@ import java.util.Collection;
 import java.util.Deque;
 import java.util.List;
 import java.util.Objects;
+import java.util.UUID;
 
 public class NetworkController implements DiscoveryHandler, PacketHandler, AutoCloseable {
     private static final Logger LOGGER = LoggerFactory.getLogger(NetworkController.class);
@@ -28,10 +29,12 @@ public class NetworkController implements DiscoveryHandler, PacketHandler, AutoC
     private DiscoveryListener discoveryListener;
     private final PropertiesContainer propertiesContainer;
     private final BigInteger networkId;
+    private final UUID nodeId;
     private int networkSize;
 
     public NetworkController(NetworkProperties properties, PropertiesContainer propertiesContainer) {
         networkId = properties.getNetworkId();
+        nodeId = properties.getNodeId();
         this.propertiesContainer = propertiesContainer;
         discoveryListener = DiscoveryListener.open(this, properties);
     }
@@ -129,7 +132,7 @@ public class NetworkController implements DiscoveryHandler, PacketHandler, AutoC
 
     @Override
     public DiscoveryEchoPacket process(DiscoveryPacket packet) {
-        ServerConnection connection = ServerConnection.open(this);
+        ServerConnection connection = ServerConnection.open(this, nodeId);
         return new DiscoveryEchoPacket(connection.getPort());
     }
 

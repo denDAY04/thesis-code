@@ -33,7 +33,7 @@ public class SAESession {
      * Get the public session parameters fit for in-the-clear transmission.
      * @return the parameters.
      */
-    SAEParameterSpec getParameters() {
+    public SAEParameterSpec getParameters() {
         return parameters;
     }
 
