@@ -1,12 +1,15 @@
 package edu.dk.asj.dpm.ui.actions;
 
-public enum VaultAction {
+/**
+ * Available UI actions when presenting a result set.
+ */
+public enum ResultSetAction {
     Delete("Delete an entry"),
     Back("Go back");
 
     private String name;
 
-    VaultAction(String name) {
+    ResultSetAction(String name) {
         this.name = name;
     }
 

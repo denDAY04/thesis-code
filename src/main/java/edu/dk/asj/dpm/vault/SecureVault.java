@@ -182,7 +182,7 @@ public class SecureVault implements Serializable {
          * calling {@link Builder#build()} to ensure the builder is ready.
          * @return true if the builder has received all required fragments to build a vault object, false otherwise.
          */
-        public boolean isComplete() {
+        boolean isComplete() {
             return byteCounter == finalVaultSize;
         }
 
@@ -216,7 +216,6 @@ public class SecureVault implements Serializable {
             return new SecureVault();
         }
     }
-
 
 
     /**

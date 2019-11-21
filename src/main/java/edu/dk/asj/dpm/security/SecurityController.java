@@ -53,7 +53,7 @@ public class SecurityController {
     private static final String HASH_SCHEME_SHORT = "SHA3-256";
 
     private static final String CIPHER_SCHEME = "AES/GCM/NoPadding";
-    private static final int IV_LENGTH = 96; // IV length recommended by NIST
+    private static final int IV_LENGTH = 96;    // IV length recommended by NIST
 
     private static final String KDF_SCHEME = "PBKDF2WithHmacSHA3-256";
     private static final int KDF_ITERATIONS = 1000;
@@ -143,17 +143,6 @@ public class SecurityController {
         hashFunction.update(generatePasswordDerivative(password));
         hashFunction.update(seed.getBytes(StandardCharsets.UTF_8));
         return new BigInteger(hashFunction.digest());
-    }
-
-    /**
-     * Clear the in-memory stored master password verification hash. This method wipes the storage space of the hash
-     * and then discards the handle.
-     */
-    public void clearMasterPassword() {
-        if (mpDerivative != null) {
-            Arrays.fill(mpDerivative, (byte) 0x00);
-            mpDerivative = null;
-        }
     }
 
     /**
@@ -274,14 +263,14 @@ public class SecurityController {
         BigInteger rand = session.getRand();
 
         ECPoint secretElem = pwe.multiply(remoteScalar).add(remoteElem).multiply(rand);
-        BigInteger sharedKey = bijectiveFunction(secretElem);
+        BigInteger sharedKey = toBigInt(secretElem);
         session.setSharedKey(sharedKey);
 
         MessageDigest hashFunction = getHashFunction();
         hashFunction.update(sharedKey.toByteArray());
-        hashFunction.update(bijectiveFunction(localElem).toByteArray());
+        hashFunction.update(toBigInt(localElem).toByteArray());
         hashFunction.update(localScalar.toByteArray());
-        hashFunction.update(bijectiveFunction(remoteElem).toByteArray());
+        hashFunction.update(toBigInt(remoteElem).toByteArray());
         hashFunction.update(remoteScalar.toByteArray());
 
         return hashFunction.digest();
@@ -306,9 +295,9 @@ public class SecurityController {
 
         MessageDigest hashFunction = getHashFunction();
         hashFunction.update(sharedKey.toByteArray());
-        hashFunction.update(bijectiveFunction(remoteElem).toByteArray());
+        hashFunction.update(toBigInt(remoteElem).toByteArray());
         hashFunction.update(remoteScalar.toByteArray());
-        hashFunction.update(bijectiveFunction(localElem).toByteArray());
+        hashFunction.update(toBigInt(localElem).toByteArray());
         hashFunction.update(localScalar.toByteArray());
         byte[] remoteVerificationToken = hashFunction.digest();
 
@@ -317,7 +306,7 @@ public class SecurityController {
         }
 
         hashFunction.update(sharedKey.toByteArray());
-        hashFunction.update(bijectiveFunction(localElem.add(remoteElem)).toByteArray());
+        hashFunction.update(toBigInt(localElem.add(remoteElem)).toByteArray());
         hashFunction.update(localScalar.add(remoteScalar).mod(ec.getOrder()).toByteArray());
         return hashFunction.digest();
     }
@@ -327,7 +316,7 @@ public class SecurityController {
      * @param baseKey the input key to derive a new key from.
      * @return the newly derived secret key.
      */
-    public SecretKey deriveSecretKey(byte[] baseKey) {
+    SecretKey deriveSecretKey(byte[] baseKey) {
         try {
             SecretKeyFactory kdf = SecretKeyFactory.getInstance(KDF_SCHEME, "BC");
             PBEKeySpec keySpec = new PBEKeySpec(new String(baseKey, StandardCharsets.UTF_8).toCharArray(),
@@ -392,7 +381,7 @@ public class SecurityController {
         return cipher.doFinal(encryptedData);
     }
 
-    private BigInteger bijectiveFunction(ECPoint p) {
+    private BigInteger toBigInt(ECPoint p) {
         byte[] encoded = p.getEncoded(false);
         // first byte of encoded point is a flag, so it's ignored
         return new BigInteger(encoded, 1, encoded.length - 1);

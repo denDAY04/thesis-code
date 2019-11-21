@@ -5,6 +5,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
+/**
+ * Helper class for file-system IO.
+ */
 public class StorageHelper {
 
     /**

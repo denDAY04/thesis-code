@@ -43,12 +43,6 @@ public class VaultEntry implements Serializable {
         return password;
     }
 
-    /**
-     * Determine equality between this vault entry and another object. Equality is ONLY true if both objects are
-     * a vault entry, and they have equal names (not case sensitive).
-     * @param obj other object to compare with.
-     * @return true if the objects are equal, false otherwise.
-     */
     @Override
     public boolean equals(Object obj) {
         if (obj == null) {
@@ -64,11 +58,6 @@ public class VaultEntry implements Serializable {
         return this.name.toLowerCase().equals(other.name.toLowerCase());
     }
 
-    /**
-     * Compute (Java) hash code for this vault object, uniquely defined by its name. This hash value is not to be
-     * confused with a cryptographically secure hash, and this should not be used in secure computations.
-     * @return this entry's hash value.
-     */
     @Override
     public int hashCode() {
         return Objects.hash(name);

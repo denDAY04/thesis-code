@@ -15,13 +15,15 @@ import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.Collection;
 
+/**
+ * The base application class.
+ */
 public class Application {
     private static final Logger LOGGER = LoggerFactory.getLogger(Application.class);
 
     private UserInterface ui;
     private SecureVault vault;
     private NetworkController networkController;
-    private NetworkProperties networkProperties;
     private PropertiesContainer propertiesContainer;
     private SecurityController securityController;
 
@@ -41,12 +43,12 @@ public class Application {
         application.ui.run();
     }
 
+    /**
+     * Get the application's vault.
+     * @return the vault.
+     */
     public SecureVault getVault() {
         return vault;
-    }
-
-    public SecurityController getSecurityController() {
-        return securityController;
     }
 
     /**
@@ -130,7 +132,7 @@ public class Application {
         ui.message("Loading configuration...");
 
         String path = propertiesContainer.getStorageProperties().getNetworkPropertiesPath();
-        networkProperties = NetworkProperties.loadFromStorage(path);
+        NetworkProperties networkProperties = NetworkProperties.loadFromStorage(path);
         if (networkProperties != null) {
             boolean pwdVerified;
             String pwd;
@@ -177,6 +179,7 @@ public class Application {
             networkProperties = NetworkProperties.generate(pwd, networkIdSeed, path);
             if (networkProperties == null) {
                 ui.fatal("The new configuration could not be completed");
+                return;
             }
             networkController = new NetworkController(networkProperties, propertiesContainer);
 

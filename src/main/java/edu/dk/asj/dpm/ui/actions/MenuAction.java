@@ -1,5 +1,8 @@
 package edu.dk.asj.dpm.ui.actions;
 
+/**
+ * Available UI actions when presenting the main menu.
+ */
 public enum MenuAction {
     ShowVault("Show vault"),
     SearchVault("Search for names"),

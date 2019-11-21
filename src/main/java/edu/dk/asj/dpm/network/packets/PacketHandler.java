@@ -1,10 +1,20 @@
 package edu.dk.asj.dpm.network.packets;
 
-import edu.dk.asj.dpm.network.packets.Packet;
+/**
+ * Interface for handing a network packet and errors that may occur while receiving a packet or its response.
+ */
+public interface PacketHandler {
 
-public interface PacketHandler<P extends Packet> {
+    /**
+     * Handle a received packet and possibly return a response to be sent.
+     * @param request the request packet to process.
+     * @return the packet to send as reply, if any. If no reply is needed, return null.
+     */
+    Packet process(Packet request);
 
-    Packet process(P request);
-
+    /**
+     * Handle an error that was raised during the reception or transmission of the packets.
+     * @param error the error message.
+     */
     void error(String error);
 }

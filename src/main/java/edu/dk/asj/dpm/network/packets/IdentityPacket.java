@@ -3,6 +3,9 @@ package edu.dk.asj.dpm.network.packets;
 import java.util.Objects;
 import java.util.UUID;
 
+/**
+ * Packet containing a node's identity. For use in the SAE protocol.
+ */
 public class IdentityPacket extends Packet {
     private static final long serialVersionUID = -8897636234832664126L;
 
@@ -40,6 +43,6 @@ public class IdentityPacket extends Packet {
 
     @Override
     public String toString() {
-        return "IdentityPacket{nodeId:"+nodeId+"}";
+        return IdentityPacket.class + "{nodeId:"+nodeId+"}";
     }
 }

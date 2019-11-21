@@ -1,5 +1,8 @@
 package edu.dk.asj.dpm.ui.actions;
 
+/**
+ * Available UI actions when presenting sign-in.
+ */
 public enum SignInAction {
     SignIn("Sign in"),
     Exit("Exit application");

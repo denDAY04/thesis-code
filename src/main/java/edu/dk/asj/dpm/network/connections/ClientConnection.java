@@ -52,6 +52,9 @@ public class ClientConnection extends SAEConnection implements AutoCloseable {
         return new ClientConnection(destination, nodeId);
     }
 
+    /**
+     * Start the connection and its execution flow.
+     */
     @Override
     public synchronized void start() {
         LOGGER.debug("Started client connection");
@@ -59,6 +62,37 @@ public class ClientConnection extends SAEConnection implements AutoCloseable {
             throw new IllegalStateException("Connection does not have a request");
         }
         super.start();
+    }
+
+    /**
+     * <b>DO NOT</b> call this method. It is invoked when the connection is started.
+     */
+    @Override
+    public void run() {
+        super.run();
+
+        if (!openConnection()) {
+            cleanUp();
+            return;
+        }
+
+        if (!saeHandshake()) {
+            LOGGER.warn("SAE handshake failed");
+            error = "Could not authenticate connection";
+            cleanUp();
+            return;
+        }
+        LOGGER.info("Established secure connection");
+
+        if (!sendRequest()) {
+            cleanUp();
+            return;
+        }
+
+        if (requireResponse) {
+            receiveResponse();
+        }
+        cleanUp();
     }
 
     /**
@@ -97,36 +131,8 @@ public class ClientConnection extends SAEConnection implements AutoCloseable {
     }
 
     /**
-     * Execute the flow of the connection and its actions of sending its request and receiving its response.
+     * Close the connection and clean up.
      */
-    @Override
-    public void run() {
-        super.run();
-
-        if (!openConnection()) {
-            cleanUp();
-            return;
-        }
-
-        if (!saeHandshake()) {
-            LOGGER.warn("SAE handshake failed");
-            error = "Could not authenticate connection";
-            cleanUp();
-            return;
-        }
-        LOGGER.info("Established secure connection");
-
-        if (!sendRequest()) {
-            cleanUp();
-            return;
-        }
-
-        if (requireResponse) {
-            receiveResponse();
-        }
-        cleanUp();
-    }
-
     @Override
     public void close() {
         cleanUp();

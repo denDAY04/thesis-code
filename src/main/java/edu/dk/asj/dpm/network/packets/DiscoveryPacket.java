@@ -1,6 +1,5 @@
 package edu.dk.asj.dpm.network.packets;
 
-import java.io.Serializable;
 import java.math.BigInteger;
 import java.util.Objects;
 
@@ -12,6 +11,10 @@ public class DiscoveryPacket extends Packet {
 
     private final BigInteger networkId;
 
+    /**
+     * Construct a discovery packet for the given network.
+     * @param networkId the ID of the network that should reply to this packet.
+     */
     public DiscoveryPacket(BigInteger networkId) {
         this.networkId = networkId;
     }
@@ -39,6 +42,6 @@ public class DiscoveryPacket extends Packet {
 
     @Override
     public String toString() {
-        return "DiscoveryPacket{networkId:" + networkId + "}";
+        return DiscoveryPacket.class + "{networkId:" + networkId + "}";
     }
 }

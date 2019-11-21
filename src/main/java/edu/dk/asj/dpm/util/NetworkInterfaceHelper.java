@@ -13,6 +13,9 @@ import java.util.Collections;
 import java.util.Enumeration;
 import java.util.Random;
 
+/**
+ * Helper class for retrieving the underlying system's active network interface controller.
+ */
 public final class NetworkInterfaceHelper {
     private static final Logger LOGGER = LoggerFactory.getLogger(NetworkInterfaceHelper.class);
 

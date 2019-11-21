@@ -56,7 +56,7 @@ public class VaultFragment implements Serializable {
      * Get the mask int-array mapping the byte-indices from this fragment into the byte array of the complete vault.
      * @return the mask.
      */
-    public int[] getMask() {
+    int[] getMask() {
         return mask;
     }
 
@@ -64,7 +64,7 @@ public class VaultFragment implements Serializable {
      * Get the original vault's total byte size.
      * @return the size.
      */
-    public int getVaultSize() {
+    int getVaultSize() {
         return vaultSize;
     }
 
@@ -73,15 +73,10 @@ public class VaultFragment implements Serializable {
      * @param vaultSize the total byte-size of the vault this fragment will (partly) represent.
      * @return the builder.
      */
-    public static Builder builder(int vaultSize) {
+    static Builder builder(int vaultSize) {
         return new Builder(vaultSize);
     }
 
-    /**
-     * Auto-generated semantic equals method that include all fields in the fragment object.
-     * @param o object to compare with.
-     * @return true if the object is semantically equal to this object.
-     */
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -92,10 +87,6 @@ public class VaultFragment implements Serializable {
                 Arrays.equals(mask, fragment1.mask);
     }
 
-    /**
-     * Auto-generated Java object hash.
-     * @return the Java hash.
-     */
     @Override
     public int hashCode() {
         int result = Objects.hash(vaultSize);
@@ -106,13 +97,13 @@ public class VaultFragment implements Serializable {
 
     @Override
     public String toString() {
-        return "VaultFragment{vaultSize:"+vaultSize+";fragment.length:"+fragment.length+";mask.length:"+mask.length+"}";
+        return VaultFragment.class + "{vaultSize:"+vaultSize+";fragment.length:"+fragment.length+";mask.length:"+mask.length+"}";
     }
 
     /**
      * Builder for constructing a vault fragment through iteratively adding byte data.
      */
-    public static class Builder {
+    static class Builder {
         private int vaultSize;
         private ByteBuffer byteBuffer;
         private IntBuffer maskBuffer;
@@ -139,7 +130,7 @@ public class VaultFragment implements Serializable {
          * @param data the byte data.
          * @return this builder.
          */
-        public Builder addByte(int maskIndex, byte data) {
+        Builder addByte(int maskIndex, byte data) {
             Objects.checkIndex(maskIndex, vaultSize);
             maskBuffer.put(maskIndex);
             byteBuffer.put(data);
@@ -150,7 +141,7 @@ public class VaultFragment implements Serializable {
          * Build the vault fragment.
          * @return the vault fragment.
          */
-        public VaultFragment build() {
+        VaultFragment build() {
             byte[] byteArray = BufferHelper.readAndClear(byteBuffer);
             int [] maskArray = BufferHelper.readAndClear(maskBuffer);
             return new VaultFragment(maskArray, byteArray, vaultSize);

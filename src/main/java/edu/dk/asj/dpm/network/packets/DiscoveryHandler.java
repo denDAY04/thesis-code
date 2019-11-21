@@ -1,8 +1,5 @@
 package edu.dk.asj.dpm.network.packets;
 
-import edu.dk.asj.dpm.network.packets.DiscoveryEchoPacket;
-import edu.dk.asj.dpm.network.packets.DiscoveryPacket;
-
 /**
  * Interface for handling network discovery requests.
  */

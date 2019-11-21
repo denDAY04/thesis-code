@@ -1,6 +1,5 @@
 package edu.dk.asj.dpm.network.connections;
 
-
 import edu.dk.asj.dpm.network.packets.PacketHandler;
 import edu.dk.asj.dpm.network.packets.Packet;
 import edu.dk.asj.dpm.util.BufferHelper;
@@ -21,6 +20,9 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
+/**
+ * Server stream-oriented connection running in its own isolated thread.
+ */
 public class ServerConnection extends SAEConnection implements AutoCloseable {
     private static final Logger LOGGER = LoggerFactory.getLogger(ServerConnection.class);
 
@@ -48,6 +50,12 @@ public class ServerConnection extends SAEConnection implements AutoCloseable {
         }
     }
 
+    /**
+     * Open and start a new server connection running in its own thread.
+     * @param packetHandler the handler that will be served the packets received by the connection.
+     * @param nodeId this node's ID.
+     * @return the started connection.
+     */
     public static ServerConnection open(PacketHandler packetHandler, UUID nodeId) {
         Objects.requireNonNull(packetHandler, "Request processor must not be null");
         Objects.requireNonNull(nodeId, "Node identity must not be null");
@@ -59,6 +67,9 @@ public class ServerConnection extends SAEConnection implements AutoCloseable {
         return connection;
     }
 
+    /**
+     * <b>DO NOT</b> call this method. It is invoked when the connection is opened during construction.
+     */
     @Override
     public void run() {
         if (!acceptConnection()) {
@@ -96,6 +107,9 @@ public class ServerConnection extends SAEConnection implements AutoCloseable {
         return port;
     }
 
+    /**
+     * Close the connection and clean up.
+     */
     @Override
     public synchronized void close() {
         cleanUp();

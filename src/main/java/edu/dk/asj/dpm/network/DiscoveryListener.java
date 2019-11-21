@@ -84,6 +84,10 @@ public class DiscoveryListener extends Thread implements AutoCloseable {
         return listener;
     }
 
+    /**
+     * Execute the listener's flow. This is a continuous flow that does not end unless {@link DiscoveryListener#close()}
+     * is called or an error was throw during network discovery or responding to network discovery from other nodes.
+     */
     @Override
     public void run() {
         super.run();
@@ -118,18 +122,34 @@ public class DiscoveryListener extends Thread implements AutoCloseable {
         isListening = true;
     }
 
+    /**
+     * Signal for the listener to initiate a new network discovery. This may not initiate immediately upon this method
+     * returning, but it will happen as soon as possible.
+     */
     public void startNetworkDiscovery() {
         isDiscovering = true;
     }
 
+    /**
+     * Check if the listener is currently in the process of doing network discovery.
+     * @return true if the listener is currently in the process of discovering the network; false otherwise.
+     */
     public boolean isDiscovering() {
         return isDiscovering;
     }
 
+    /**
+     * Poll the node connections queue to return the next connection that was discovered.
+     * @return the next discovered connection in the queue, or null if no new connection has been discovered since the
+     * last poll.
+     */
     public ClientConnection getNextNodeConnection() {
         return discoveredNodes.poll();
     }
 
+    /**
+     * Close the listener and clean up.
+     */
     @Override
     public synchronized void close() {
         closed = true;

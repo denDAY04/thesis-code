@@ -1,10 +1,11 @@
 package edu.dk.asj.dpm.ui;
 
 import edu.dk.asj.dpm.Application;
-import edu.dk.asj.dpm.ui.actions.EmptyVaultAction;
+import edu.dk.asj.dpm.security.SecurityController;
+import edu.dk.asj.dpm.ui.actions.EmptyResultSetAction;
 import edu.dk.asj.dpm.ui.actions.MenuAction;
 import edu.dk.asj.dpm.ui.actions.SignInAction;
-import edu.dk.asj.dpm.ui.actions.VaultAction;
+import edu.dk.asj.dpm.ui.actions.ResultSetAction;
 import edu.dk.asj.dpm.vault.VaultEntry;
 import org.beryx.textio.TextIO;
 import org.beryx.textio.TextIoFactory;
@@ -14,6 +15,9 @@ import org.slf4j.LoggerFactory;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * Text-based user interface.
+ */
 public class UserInterface {
     private static final Logger LOGGER = LoggerFactory.getLogger(UserInterface.class);
     private static final String BLANK_SCREEN = "clean-bookmark";
@@ -22,6 +26,10 @@ public class UserInterface {
     private Application application;
     private boolean signedIn;
 
+    /**
+     * Initiate the user interface.
+     * @param application reference to the base application.
+     */
     public UserInterface(Application application) {
         Objects.requireNonNull(application);
 
@@ -35,6 +43,9 @@ public class UserInterface {
         textUI.getTextTerminal().setBookmark(BLANK_SCREEN);
     }
 
+    /**
+     * Continuous loop executing the UI, until the user choose to exit the application, or a fatal error is raised.
+     */
     @SuppressWarnings("InfiniteLoopStatement")
     public void run() {
         while (true) {
@@ -156,7 +167,7 @@ public class UserInterface {
         message("-- Vault Entries --");
         if (entries == null || entries.isEmpty()){
             message("No entries found");
-            EmptyVaultAction action = textUI.newEnumInputReader(EmptyVaultAction.class).read();
+            EmptyResultSetAction action = textUI.newEnumInputReader(EmptyResultSetAction.class).read();
             switch (action) {
                 case Back:
                     clearScreen();
@@ -168,7 +179,7 @@ public class UserInterface {
                 message("[" + (i++) + "] " + entry);
             }
 
-            VaultAction action = textUI.newEnumInputReader(VaultAction.class).read();
+            ResultSetAction action = textUI.newEnumInputReader(ResultSetAction.class).read();
             switch (action) {
                 case Delete:
                     Integer selection = textUI
@@ -238,7 +249,7 @@ public class UserInterface {
 
                 case SignIn:
                     String pwd = getPassword("Master password:");
-                    authenticated = application.getSecurityController().isMasterPassword(pwd);
+                    authenticated = SecurityController.getInstance().isMasterPassword(pwd);
                     clearScreen();
                     if (!authenticated) {
                         error("Incorrect password");

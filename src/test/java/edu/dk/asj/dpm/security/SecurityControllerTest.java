@@ -78,17 +78,6 @@ class SecurityControllerTest {
     }
 
     @Test
-    @DisplayName("Clear master password")
-    void clearMasterPassword() {
-        SecurityController controller = SecurityController.getInstance();
-        String password = "12345";
-        controller.setMasterPassword(password);
-
-        controller.clearMasterPassword();
-        assertFalse(controller.isMasterPassword(password), "Password was not cleared");
-    }
-
-    @Test
     @DisplayName("Initiate SAE session")
     void generateSAEParams() {
         SecurityController controller = SecurityController.getInstance();

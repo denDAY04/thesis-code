@@ -152,6 +152,10 @@ public class NetworkController implements DiscoveryHandler, PacketHandler, AutoC
             return null;
 
         } else if (request instanceof GetFragmentPacket) {
+            if (!networkId.equals(((GetFragmentPacket) request).getNetworkId())) {
+                LOGGER.warn("Ignoring fragment request from unknown network");
+                return null;
+            }
             String path = propertiesContainer.getStorageProperties().getFragmentPath();
             return new FragmentPacket(SecurityController.getInstance().loadFragment(path));
 

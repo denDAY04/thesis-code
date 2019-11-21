@@ -19,7 +19,11 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
-public class SAEConnection extends Thread {
+/**
+ * Abstract class modeling the SAE properties and protocol for a stream-oriented connection.
+ */
+@SuppressWarnings("WeakerAccess")
+public abstract class SAEConnection extends Thread {
     private static final Logger LOGGER = LoggerFactory.getLogger(SAEConnection.class);
 
     private static final long SAE_HANDSHAKE_TIMEOUT_MS = 3000;
@@ -31,17 +35,36 @@ public class SAEConnection extends Thread {
 
     protected AsynchronousSocketChannel connection;
 
+    /**
+     * Construct an SAE connection.
+     * @param name the name of the thread executing the connection.
+     * @param nodeId the ID of this node.
+     * @param isClient flag indicating whether the connection should execute its flow as an initiating client or
+     *                 reactionary server.
+     */
     protected SAEConnection(String name, UUID nodeId, boolean isClient) {
         super(name);
         this.nodeId = nodeId;
         this.isClient = isClient;
     }
 
+    /**
+     * Construct an SAE connection.
+     * @param nodeId the ID of this node.
+     * @param isClient flag indicating whether the connection should execute its flow as an initiating client or
+     *                 reactionary server.
+     */
     protected SAEConnection(UUID nodeId, boolean isClient) {
         this.nodeId = nodeId;
         this.isClient = isClient;
     }
 
+    /**
+     * Execute the SAE protocol/handshake in order to mutually authenticate the participating nodes, and establish a
+     * secure connection by computing a secret key used for encrypting the channel's data.
+     * @return true if the handshake succeeded and the connection was authenticated and secured; false otherwise.
+     */
+    @SuppressWarnings("BooleanMethodIsAlwaysInverted")
     protected boolean saeHandshake() {
         LOGGER.info("Initiating SAE handshake");
 
@@ -61,11 +84,23 @@ public class SAEConnection extends Thread {
         return false;
     }
 
+    /**
+     * Encrypt the data using the computed shared SAE key.
+     * @param data the clear-text data to be encrypted.
+     * @return the encrypted cipher-text.
+     * @throws Exception if an exception was raised.
+     */
     protected byte[] encrypt(byte[] data) throws Exception {
         LOGGER.debug("Encrypting data");
         return SecurityController.getInstance().encrypt(data, saeKey);
     }
 
+    /**
+     * Decrypt the data using the computed shared SAE key.
+     * @param data the cipher-text to be decrypted.
+     * @return the decrypted clear-text.
+     * @throws Exception if an exception was raised.
+     */
     protected byte[] decrypt(byte[] data) throws Exception {
         LOGGER.debug("Decrypting data");
         return SecurityController.getInstance().decrypt(data, saeKey);

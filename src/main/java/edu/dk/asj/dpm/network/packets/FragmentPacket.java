@@ -1,7 +1,7 @@
 package edu.dk.asj.dpm.network.packets;
 
 import edu.dk.asj.dpm.vault.VaultFragment;
-import java.io.Serializable;
+
 import java.util.Objects;
 
 /**
@@ -43,6 +43,6 @@ public class FragmentPacket extends Packet {
 
     @Override
     public String toString() {
-        return "FragmentPacket{"+fragment+"}";
+        return FragmentPacket.class + "{fragment:"+fragment+"}";
     }
 }

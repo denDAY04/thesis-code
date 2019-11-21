@@ -1,6 +1,5 @@
 package edu.dk.asj.dpm.network.packets;
 
-import java.io.Serializable;
 import java.util.Objects;
 
 /**
@@ -43,6 +42,6 @@ public class DiscoveryEchoPacket extends Packet {
 
     @Override
     public String toString() {
-        return "DiscoveryEchoPacket{connectionPort:"+connectionPort+"}";
+        return DiscoveryEchoPacket.class + "{connectionPort:" + connectionPort + "}";
     }
 }

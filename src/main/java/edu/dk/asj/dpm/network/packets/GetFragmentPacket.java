@@ -3,15 +3,26 @@ package edu.dk.asj.dpm.network.packets;
 import java.math.BigInteger;
 import java.util.Objects;
 
+/**
+ * Packet for requesting a node's fragment.
+ */
 public class GetFragmentPacket extends Packet {
     private static final long serialVersionUID = -3818150600075892916L;
 
     private BigInteger networkId;
 
+    /**
+     * Construct a new packet.
+     * @param networkId the ID of the network to send this packet to.
+     */
     public GetFragmentPacket(BigInteger networkId) {
         this.networkId = networkId;
     }
 
+    /**
+     * Get the ID of the network for this packet.
+     * @return the network ID.
+     */
     public BigInteger getNetworkId() {
         return networkId;
     }
@@ -31,6 +42,6 @@ public class GetFragmentPacket extends Packet {
 
     @Override
     public String toString() {
-        return "GetFragmentPacket{networkId:"+networkId+"}";
+        return GetFragmentPacket.class + "{networkId:"+networkId+"}";
     }
 }

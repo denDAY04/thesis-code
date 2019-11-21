@@ -23,17 +23,29 @@ public class SAEParameterSpec implements Serializable {
     private final BigInteger scalar;
     private final byte[] elem;
 
-
-    public SAEParameterSpec(BigInteger scalar, byte[] encodedElement) {
+    /**
+     * Construct a set of SAE parameters.
+     * @param scalar the scalar value.
+     * @param encodedElement the element value in its (uncompressed) encoded form.
+     */
+    SAEParameterSpec(BigInteger scalar, byte[] encodedElement) {
         this.scalar = scalar;
         this.elem = encodedElement;
     }
 
-    public BigInteger getScalar() {
+    /**
+     * Get the scalar value.
+     * @return the scalar.
+     */
+    BigInteger getScalar() {
         return scalar;
     }
 
-    public byte[] getElem() {
+    /**
+     * Get the (uncompressed) encoded element.
+     * @return the element.
+     */
+    byte[] getElem() {
         return elem;
     }
 
@@ -55,6 +67,6 @@ public class SAEParameterSpec implements Serializable {
 
     @Override
     public String toString() {
-        return "SAEParameterSpec{scalar:"+scalar+";elem:"+ Hex.toHexString(elem)+"}";
+        return SAEParameterSpec.class + "{scalar:"+scalar+";elem:"+ Hex.toHexString(elem)+"}";
     }
 }
