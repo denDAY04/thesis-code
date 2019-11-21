@@ -133,4 +133,36 @@ class SecurityControllerTest {
                 "Decryption with bad key did not trigger failed MAC check");
     }
 
+
+    @Test
+    @DisplayName("ECC is thread safe")
+    void threadSafeECC() throws InterruptedException {
+        SecurityController.getInstance().setMasterPassword("123");
+        UUID id1 = UUID.randomUUID();
+        UUID id2 = UUID.randomUUID();
+
+        final SAESession[] sessions = new SAESession[3];
+
+        Thread t1 = new Thread(() -> {
+           sessions[0] = SecurityController.getInstance().initiateSaeSession(id1, id2);
+        });
+        Thread t2 = new Thread(() -> {
+            sessions[1] = SecurityController.getInstance().initiateSaeSession(id1, id2);
+        });
+        Thread t3 = new Thread(() -> {
+            sessions[2] = SecurityController.getInstance().initiateSaeSession(id1, id2);
+        });
+
+        t1.start();
+        t2.start();
+        t3.start();
+
+        t1.join();
+        t2.join();
+        t3.join();
+
+        assertNotNull(sessions[0], "Session 0 is null");
+        assertNotNull(sessions[1], "Session 1 is null");
+        assertNotNull(sessions[2], "Session 2 is null");
+    }
 }

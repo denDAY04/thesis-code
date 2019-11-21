@@ -43,7 +43,7 @@ import static java.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
 import static java.nio.file.StandardOpenOption.WRITE;
 
 /**
- * Singleton controlling the application's different security schemes.
+ * Thread-safe singleton controlling the application's different security schemes.
  */
 public class SecurityController {
     private static final Logger LOGGER = LoggerFactory.getLogger(SecurityController.class);
