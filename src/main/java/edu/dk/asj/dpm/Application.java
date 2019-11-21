@@ -62,8 +62,9 @@ public class Application {
 
     /**
      * Construct the secure vault
+     * @return true if the construction was successful; false if an error was raised.
      */
-    public void constructVault() {
+    public boolean constructVault() {
         ui.message("Loading local data...");
         VaultFragment localFragment = securityController.loadFragment(propertiesContainer.getStorageProperties().getFragmentPath());
         try {
@@ -75,13 +76,16 @@ public class Application {
             builder.addFragment(localFragment);
             networkFragments.forEach(builder::addFragment);
             vault = builder.build();
+            return true;
+
         } catch (IOException | ClassNotFoundException e) {
             LOGGER.error("Fetch vault fragments exception", e);
-            ui.fatal("Encountered an error while retrieving the vault from node network");
+            ui.error("Encountered an error while retrieving the vault from node network");
         } catch (IllegalStateException e) {
             LOGGER.error("Vault construction not complete", e);
-            ui.fatal("Could not retrieve all vault fragments. Maybe some nodes are offline?");
+            ui.error("Could not retrieve all vault fragments. Maybe some nodes are offline?");
         }
+        return false;
     }
 
     /**

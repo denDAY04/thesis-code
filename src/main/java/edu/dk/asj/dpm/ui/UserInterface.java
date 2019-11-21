@@ -259,6 +259,12 @@ public class UserInterface {
                         } catch (InterruptedException e) {
                             // do nothing
                         }
+                    } else {
+                        if (application.constructVault()) {
+                            signedIn = true;
+                        } else  {
+                            authenticated = false;
+                        }
                     }
                     break;
                 case Exit:
@@ -266,8 +272,6 @@ public class UserInterface {
                     return;
             }
         } while (!authenticated);
-        signedIn = true;
-        application.constructVault();
         clearScreen();
     }
 
