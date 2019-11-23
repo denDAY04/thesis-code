@@ -216,7 +216,7 @@ public class SecurityController {
         ECPoint pwe = null;
         int i;
         int limit = 100000;
-        for(i = 1; i <= limit && (pwe == null || pwe.isInfinity()); ++i) {
+        for(i = 1; i <= limit && (pwe == null || pwe.isInfinity() || !pwe.isValid()); ++i) {
             if (localNode.compareTo(remoteNode) > 0) {
                 hash.update(localNode.toString().getBytes(StandardCharsets.UTF_8));
                 hash.update(remoteNode.toString().getBytes(StandardCharsets.UTF_8));
@@ -266,14 +266,14 @@ public class SecurityController {
         BigInteger rand = session.getRand();
 
         ECPoint secretElem = pwe.multiply(remoteScalar).add(remoteElem).multiply(rand);
-        BigInteger sharedKey = toBigInt(secretElem);
-        session.setSharedKey(sharedKey);
+        BigInteger intermediateKey = mapPointToInt(secretElem);
+        session.setIntermediateKey(intermediateKey);
 
         MessageDigest hashFunction = getHashFunction();
-        hashFunction.update(sharedKey.toByteArray());
-        hashFunction.update(toBigInt(localElem).toByteArray());
+        hashFunction.update(intermediateKey.toByteArray());
+        hashFunction.update(mapPointToInt(localElem).toByteArray());
         hashFunction.update(localScalar.toByteArray());
-        hashFunction.update(toBigInt(remoteElem).toByteArray());
+        hashFunction.update(mapPointToInt(remoteElem).toByteArray());
         hashFunction.update(remoteScalar.toByteArray());
 
         return hashFunction.digest();
@@ -294,13 +294,13 @@ public class SecurityController {
         BigInteger localScalar = session.getParameters().getScalar();
         ECPoint remoteElem = ec.decodePoint(remoteParameters.getElem());
         BigInteger remoteScalar = remoteParameters.getScalar();
-        BigInteger sharedKey = session.getSharedKey();
+        BigInteger intermediateKey = session.getIntermediateKey();
 
         MessageDigest hashFunction = getHashFunction();
-        hashFunction.update(sharedKey.toByteArray());
-        hashFunction.update(toBigInt(remoteElem).toByteArray());
+        hashFunction.update(intermediateKey.toByteArray());
+        hashFunction.update(mapPointToInt(remoteElem).toByteArray());
         hashFunction.update(remoteScalar.toByteArray());
-        hashFunction.update(toBigInt(localElem).toByteArray());
+        hashFunction.update(mapPointToInt(localElem).toByteArray());
         hashFunction.update(localScalar.toByteArray());
         byte[] remoteVerificationToken = hashFunction.digest();
 
@@ -308,8 +308,8 @@ public class SecurityController {
             return null;
         }
 
-        hashFunction.update(sharedKey.toByteArray());
-        hashFunction.update(toBigInt(localElem.add(remoteElem)).toByteArray());
+        hashFunction.update(intermediateKey.toByteArray());
+        hashFunction.update(mapPointToInt(localElem.add(remoteElem)).toByteArray());
         hashFunction.update(localScalar.add(remoteScalar).mod(ec.getOrder()).toByteArray());
         return hashFunction.digest();
     }
@@ -389,7 +389,16 @@ public class SecurityController {
         }
     }
 
-    private BigInteger toBigInt(ECPoint p) {
+    private BigInteger mapPointToInt(ECPoint p) {
+        /*
+        bijective map/function: injective and surjective
+
+        injective: The encoded byte format maps each point to a distinct int since the bit order will be unique for
+                   any given point in the domain.
+
+        surjective: Any int within the bit-length of the curve's order can be mapped into an encoded point (though it
+                    may not be a valid point on the curve)
+        */
         byte[] encoded = p.getEncoded(false);
         // first byte of encoded point is a flag, so it's ignored
         return new BigInteger(encoded, 1, encoded.length - 1);
@@ -436,7 +445,7 @@ public class SecurityController {
         }
 
         try {
-            return flipSign ? ec.validatePoint(xField.toBigInteger(), yField.negate().toBigInteger())
+            return flipSign ? ec.validatePoint(xField.toBigInteger(), yField.invert().toBigInteger())
                     : ec.validatePoint(xField.toBigInteger(), yField.toBigInteger());
         } catch (IllegalArgumentException e) {
             //point was invalid

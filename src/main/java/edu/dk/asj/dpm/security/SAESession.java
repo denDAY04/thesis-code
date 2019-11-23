@@ -15,7 +15,7 @@ public class SAESession {
     private final SAEParameterSpec parameters;
     private final BigInteger rand;
     private final ECPoint pwe;
-    private BigInteger sharedKey;
+    private BigInteger intermediateKey;
 
     /**
      * Construct a new SAE session.
@@ -54,18 +54,18 @@ public class SAESession {
     }
 
     /**
-     * Get the shared key. This value is a secret primitive.
-     * @return the shared key.
+     * Get the intermediate key. This value is a secret primitive.
+     * @return the key.
      */
-    BigInteger getSharedKey() {
-        return sharedKey;
+    BigInteger getIntermediateKey() {
+        return intermediateKey;
     }
 
     /**
      * Set the shared key.
-     * @param sharedKey the shared key.
+     * @param intermediateKey the shared key.
      */
-    void setSharedKey(BigInteger sharedKey) {
-        this.sharedKey = sharedKey;
+    void setIntermediateKey(BigInteger intermediateKey) {
+        this.intermediateKey = intermediateKey;
     }
 }
