@@ -9,8 +9,12 @@
     <version>1.0-SNAPSHOT</version>
 
     <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <junit-version>5.5.2</junit-version>
+        <!-- Target directory for all the files that needs to be included in a distributable for the application -->
+        <distDirectory>${project.build.directory}/dist</distDirectory>
     </properties>
+
 
     <dependencies>
         <dependency>
@@ -18,26 +22,16 @@
             <artifactId>bcprov-jdk15on</artifactId>
             <version>1.64</version>
         </dependency>
-        <!-- https://mvnrepository.com/artifact/org.beryx/text-io -->
         <dependency>
             <groupId>org.beryx</groupId>
             <artifactId>text-io</artifactId>
             <version>3.3.0</version>
         </dependency>
-        <!-- https://mvnrepository.com/artifact/org.slf4j/slf4j-log4j12 -->
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-log4j12</artifactId>
             <version>1.7.29</version>
         </dependency>
-<!--        &lt;!&ndash; https://mvnrepository.com/artifact/org.slf4j/log4j-over-slf4j &ndash;&gt;-->
-<!--        <dependency>-->
-<!--            <groupId>org.slf4j</groupId>-->
-<!--            <artifactId>log4j-over-slf4j</artifactId>-->
-<!--            <version>1.7.29</version>-->
-<!--        </dependency>-->
-
-
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter-engine</artifactId>
@@ -63,17 +57,18 @@
                     <release>11</release>
                 </configuration>
             </plugin>
-            <!-- Plugin for specifying JAR package manifest properties -->
+            <!-- Plugin for specifying JAR package manifest properties and output dir -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-jar-plugin</artifactId>
                 <version>3.1.1</version>
                 <configuration>
+                    <outputDirectory>${distDirectory}</outputDirectory>
                     <archive>
                         <manifest>
                             <addClasspath>true</addClasspath>
                             <classpathPrefix>lib/</classpathPrefix>
-                            <mainClass>edu.dk.asj.dpm.ui.UserInterface</mainClass>
+                            <mainClass>edu.dk.asj.dpm.Application</mainClass>
                         </manifest>
                     </archive>
                 </configuration>
@@ -91,7 +86,7 @@
                             <goal>copy-dependencies</goal>
                         </goals>
                         <configuration>
-                            <outputDirectory>${project.build.directory}/lib</outputDirectory>
+                            <outputDirectory>${distDirectory}/lib</outputDirectory>
                             <includeScope>runtime</includeScope>
                         </configuration>
                     </execution>
@@ -109,7 +104,7 @@
                             <goal>resources</goal>
                         </goals>
                         <configuration>
-                            <outputDirectory>${project.build.directory}</outputDirectory>
+                            <outputDirectory>${distDirectory}/config</outputDirectory>
                         </configuration>
                     </execution>
                 </executions>
