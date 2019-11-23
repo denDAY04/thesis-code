@@ -57,7 +57,8 @@ public class SecurityController {
 
     private static final String KDF_SCHEME = "PBKDF2WithHmacSHA3-256";
     private static final int KDF_ITERATIONS = 1000;
-    private static final int KDF_LENGTH = 256;
+    private static final int KDF_LENGTH = 128;
+    private static final int KDF_SALT_LENGTH = KDF_LENGTH;
 
     private static SecurityController instance;
 
@@ -69,10 +70,12 @@ public class SecurityController {
     private SecurityController() {
         Security.addProvider(new BouncyCastleProvider());
 
+        ec = new Curve25519();
+
+        // check that all the cryptographic schemes are available and won't throw errors
         getRandomGenerator();
         getHashFunction();
         getCipherEngine();
-
         try {
             SecretKeyFactory.getInstance(KDF_SCHEME, "BC");
         } catch (NoSuchAlgorithmException e) {
@@ -80,7 +83,7 @@ public class SecurityController {
         } catch (NoSuchProviderException e) {
             throw new IllegalStateException("Invalid KDF algorithm provider ["+e.getMessage()+"]");
         }
-        ec = new Curve25519();
+
     }
 
     /**
@@ -115,7 +118,7 @@ public class SecurityController {
      */
     public boolean isMasterPassword(String pwd) {
         Objects.requireNonNull(pwd);
-        byte[] inputHash = generatePasswordDerivative(pwd);
+        byte[] inputHash = deriveSecretKey(pwd.getBytes(StandardCharsets.UTF_8)).getEncoded();
         return Arrays.equals(mpDerivative, inputHash);
     }
 
@@ -126,21 +129,21 @@ public class SecurityController {
      */
     public void setMasterPassword(String pwd) {
         Objects.requireNonNull(pwd);
-        this.mpDerivative = generatePasswordDerivative(pwd);
+        this.mpDerivative = deriveSecretKey(pwd.getBytes(StandardCharsets.UTF_8)).getEncoded();
     }
 
     /**
      * Compute the unique network ID using the user's master password and network ID seed.
-     * @param password the user's master password (in plaintext).
+     * @param pwd the user's master password (in plaintext).
      * @param seed a seed for the network ID generation.
      * @return the generated network ID.
      */
-    public BigInteger computeNetworkId(String password, String seed) {
-        Objects.requireNonNull(password, "Master password must not be null");
+    public BigInteger computeNetworkId(String pwd, String seed) {
+        Objects.requireNonNull(pwd, "Master password must not be null");
         Objects.requireNonNull(seed, "Network ID seed must not be null");
 
         MessageDigest hashFunction = getHashFunction();
-        hashFunction.update(generatePasswordDerivative(password));
+        hashFunction.update(deriveSecretKey(pwd.getBytes(StandardCharsets.UTF_8)).getEncoded());
         hashFunction.update(seed.getBytes(StandardCharsets.UTF_8));
         return new BigInteger(hashFunction.digest());
     }
@@ -278,7 +281,7 @@ public class SecurityController {
 
     /**
      * Complete an SAE protocol session by validating a participating node's token, resulting in the generated
-     * secret (encryption key) if successfull.
+     * secret (encryption key) if successful.
      * @param session the session parameters generated from calling
      *          {@link SecurityController#initiateSaeSession(UUID, UUID)}.
      * @param remoteToken the participating remote node's token.
@@ -312,29 +315,6 @@ public class SecurityController {
     }
 
     /**
-     * Derive a secret key (for cipher encryption) from the base key such that the secret key <i>k = KDF(baseKey)</i>
-     * @param baseKey the input key to derive a new key from.
-     * @return the newly derived secret key.
-     */
-    SecretKey deriveSecretKey(byte[] baseKey) {
-        try {
-            SecretKeyFactory kdf = SecretKeyFactory.getInstance(KDF_SCHEME, "BC");
-            PBEKeySpec keySpec = new PBEKeySpec(new String(baseKey, StandardCharsets.UTF_8).toCharArray(),
-                    new byte[]{0x00},
-                    KDF_ITERATIONS,
-                    KDF_LENGTH);
-            return kdf.generateSecret(keySpec);
-
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("Invalid KDF algorithm ["+e.getMessage()+"]");
-        } catch (NoSuchProviderException e) {
-            throw new IllegalStateException("Invalid KDF algorithm provider ["+e.getMessage()+"]");
-        } catch (InvalidKeySpecException e) {
-            throw new IllegalStateException("Invalid KDF spec ["+e.getMessage()+"]");
-        }
-    }
-
-    /**
      * Encrypt the clear-text using a secret key derived from the base key.
      * @param clearText the data to be encrypted.
      * @param baseKey the key to use as input for a key derivation function such that the encryption key
@@ -344,18 +324,23 @@ public class SecurityController {
      */
     public byte[] encrypt(byte[] clearText, byte[] baseKey) throws Exception {
         Cipher cipher = getCipherEngine();
-        SecretKey key = deriveSecretKey(baseKey);
+        SecureRandom randomGenerator = getRandomGenerator();
+
+        byte[] salt = new byte[KDF_SALT_LENGTH];
+        randomGenerator.nextBytes(salt);
+        SecretKey key = deriveSecretKey(baseKey, salt);
 
         byte[] iv = new byte[IV_LENGTH];
-        getRandomGenerator().nextBytes(iv);
+        randomGenerator.nextBytes(iv);
         IvParameterSpec cipherParams = new IvParameterSpec(iv);
         cipher.init(Cipher.ENCRYPT_MODE, key, cipherParams);
 
         byte[] cipherText = cipher.doFinal(clearText);
 
-        byte[] fullData = new byte[IV_LENGTH + cipherText.length];
-        System.arraycopy(iv, 0, fullData, 0, IV_LENGTH);
-        System.arraycopy(cipherText, 0, fullData, IV_LENGTH, cipherText.length);
+        byte[] fullData = new byte[KDF_SALT_LENGTH + IV_LENGTH + cipherText.length];
+        System.arraycopy(salt, 0, fullData, 0, KDF_SALT_LENGTH);
+        System.arraycopy(iv, 0, fullData, KDF_SALT_LENGTH, IV_LENGTH);
+        System.arraycopy(cipherText, 0, fullData, KDF_SALT_LENGTH + IV_LENGTH, cipherText.length);
 
         return fullData;
     }
@@ -370,15 +355,38 @@ public class SecurityController {
      */
     public byte[] decrypt(byte[] cipherText, byte[] baseKey) throws Exception {
         Cipher cipher = getCipherEngine();
-        SecretKey key = deriveSecretKey(baseKey);
 
-        byte[] iv = Arrays.copyOfRange(cipherText, 0, IV_LENGTH);
-        byte[] encryptedData = Arrays.copyOfRange(cipherText, IV_LENGTH, cipherText.length);
+        byte[] salt = Arrays.copyOfRange(cipherText, 0, KDF_SALT_LENGTH);
+        byte[] iv = Arrays.copyOfRange(cipherText, KDF_SALT_LENGTH, KDF_SALT_LENGTH + IV_LENGTH);
+        byte[] encryptedData = Arrays.copyOfRange(cipherText, KDF_SALT_LENGTH + IV_LENGTH, cipherText.length);
 
+        SecretKey key = deriveSecretKey(baseKey, salt);
         IvParameterSpec cipherParams = new IvParameterSpec(iv);
         cipher.init(Cipher.DECRYPT_MODE, key, cipherParams);
 
         return cipher.doFinal(encryptedData);
+    }
+
+    private SecretKey deriveSecretKey(byte[] baseKey) {
+        return deriveSecretKey(baseKey, new byte[]{0x00});
+    }
+
+    private SecretKey deriveSecretKey(byte[] baseKey, byte[] salt) {
+        try {
+            SecretKeyFactory kdf = SecretKeyFactory.getInstance(KDF_SCHEME, "BC");
+            PBEKeySpec keySpec = new PBEKeySpec(new String(baseKey, StandardCharsets.UTF_8).toCharArray(),
+                    salt,
+                    KDF_ITERATIONS,
+                    KDF_LENGTH);
+            return kdf.generateSecret(keySpec);
+
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("Invalid KDF algorithm ["+e.getMessage()+"]");
+        } catch (NoSuchProviderException e) {
+            throw new IllegalStateException("Invalid KDF algorithm provider ["+e.getMessage()+"]");
+        } catch (InvalidKeySpecException e) {
+            throw new IllegalStateException("Invalid KDF spec ["+e.getMessage()+"]");
+        }
     }
 
     private BigInteger toBigInt(ECPoint p) {
@@ -443,25 +451,6 @@ public class SecurityController {
             throw new IllegalStateException("Invalid cipher padding ["+e.getMessage()+"]");
         } catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException("Invalid cipher algorithm ["+e.getMessage()+"]");
-        }
-    }
-
-    private byte[] generatePasswordDerivative(String password) {
-        try {
-            SecretKeyFactory factory = SecretKeyFactory.getInstance(KDF_SCHEME, "BC");
-            KeySpec keySpec = new PBEKeySpec(password.toCharArray(),
-                    new byte[]{0x00},
-                    KDF_ITERATIONS,
-                    KDF_LENGTH);
-            SecretKey key = factory.generateSecret(keySpec);
-            return key.getEncoded();
-
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("Invalid KDF algorithm ["+e.getMessage()+"]");
-        } catch (NoSuchProviderException e) {
-            throw new IllegalStateException("Invalid KDF algorithm provider ["+e.getMessage()+"]");
-        } catch (InvalidKeySpecException e) {
-            throw new IllegalStateException("Bad KDF spec ["+e.getMessage()+"]");
         }
     }
 }

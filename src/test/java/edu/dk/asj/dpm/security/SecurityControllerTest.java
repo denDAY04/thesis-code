@@ -97,15 +97,6 @@ class SecurityControllerTest {
     }
 
     @Test
-    @DisplayName("Generate key with KDF")
-    void deriveSecretKey() {
-        byte[] baseKey = new byte[]{0x00, 0x18};
-        SecretKey key = SecurityController.getInstance().deriveSecretKey(baseKey);
-        assertNotNull(key, "The derived key is null");
-        assertFalse(Arrays.equals(baseKey, key.getEncoded()), "Derived key must not be the same as the base key");
-    }
-
-    @Test
     @DisplayName("Encryption/Decryption")
     void encryptDecrypt() throws Exception {
         byte[] data = "Hello, world!".getBytes(StandardCharsets.UTF_8);
