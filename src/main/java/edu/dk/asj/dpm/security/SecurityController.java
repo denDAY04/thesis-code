@@ -53,11 +53,11 @@ public class SecurityController {
     private static final String HASH_SCHEME_SHORT = "SHA3-256";
 
     private static final String CIPHER_SCHEME = "AES/GCM/NoPadding";
-    private static final int IV_LENGTH = 96;    // IV length recommended by NIST
+    private static final int IV_LENGTH = 96 / 8;    // IV length recommended by NIST
 
     private static final String KDF_SCHEME = "PBKDF2WithHmacSHA3-256";
     private static final int KDF_ITERATIONS = 1000;
-    private static final int KDF_LENGTH = 128;
+    private static final int KDF_LENGTH = 128 / 8;
     private static final int KDF_SALT_LENGTH = KDF_LENGTH;
 
     private static SecurityController instance;
@@ -377,7 +377,7 @@ public class SecurityController {
             PBEKeySpec keySpec = new PBEKeySpec(new String(baseKey, StandardCharsets.UTF_8).toCharArray(),
                     salt,
                     KDF_ITERATIONS,
-                    KDF_LENGTH);
+                    KDF_LENGTH * 8);
             return kdf.generateSecret(keySpec);
 
         } catch (NoSuchAlgorithmException e) {
